@@ -1,0 +1,47 @@
+# Entornos Virtuales
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Variables de entorno (¡NUNCA SUBIR CLAVES SECRETAS!)
+.env
+.env.local
+.env.*.local
+
+# Bases de Datos locales (SQLite)
+*.sqlite3
+*.db
+
+# Caché y Testing
+.cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.tox/
+coverage.xml
+
+# Entornos y Herramientas IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
