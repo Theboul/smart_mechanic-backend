@@ -1,1 +1,46 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from decimal import Decimal
+import uuid
+
+
+# --- Requests ---
+
+class IncidentCreate(BaseModel):
+    id_vehiculo: uuid.UUID
+    descripcion: Optional[str] = None
+    telefono: Optional[str] = Field(None, max_length=20)
+    latitud: Optional[float] = Field(None, ge=-90, le=90)
+    longitud: Optional[float] = Field(None, ge=-180, le=180)
+    prioridad: Optional[str] = Field("MEDIA", pattern="^(BAJA|MEDIA|ALTA|CRITICA)$")
+
+
+# --- Responses ---
+
+class EvidenceResponse(BaseModel):
+    id_evidencia: uuid.UUID
+    id_incidente: uuid.UUID
+    evidencia_tipo: str
+    archivo_url: str
+    transcripcion: Optional[str]
+    confianza_deteccion: Optional[Decimal]
+    tipo_de_combustible: Optional[str]
+    analisis_imagen: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+class IncidentResponse(BaseModel):
+    id_incidente: uuid.UUID
+    id_vehiculo: uuid.UUID
+    id_taller: Optional[uuid.UUID]
+    descripcion: Optional[str]
+    telefono: Optional[str]
+    estado_incidente: str
+    prioridad_incidente: str
+    transcripcion_audio: Optional[str]
+    resumen_ia: Optional[str]
+    analisis_consolidado: Optional[str]
+    evidencias: List[EvidenceResponse] = []
+
+    model_config = {"from_attributes": True}

@@ -3,11 +3,12 @@ from sqlalchemy.orm import declarative_base
 
 from app.core.config import settings
 
-# Motor asíncrono de SQLAlchemy para PostgreSQL
+# Motor asíncrono de SQLAlchemy para PostgreSQL (asyncpg)
+# echo=True muestra las queries SQL en consola (ponlo en False en producción)
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=True, # Ponlo en False en Producción para no llenar la consola de logs SQL
-    future=True
+    echo=True,
+    future=True,
 )
 
 # Fábrica de sesiones asíncronas
@@ -16,13 +17,14 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
-    autoflush=False
+    autoflush=False,
 )
 
-# Clase base de la que heredarán todos nuestros Modelos (entidades fisicas de DB)
+# Clase base de la que heredarán todos los modelos ORM
 Base = declarative_base()
 
-# Dependencia para inyectar en las rutas de FastAPI
+
+# Dependencia de FastAPI para inyectar sesión de BD en los routers
 async def get_db():
     async with AsyncSessionLocal() as session:
         try:

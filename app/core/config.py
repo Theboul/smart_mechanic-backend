@@ -14,11 +14,17 @@ class Settings(BaseSettings):
     # Base de Datos (PostgreSQL usando asyncpg)
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/taller_db"
     
+    # AWS S3
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION_NAME: str = "us-east-1"
+    AWS_BUCKET_NAME: str = "taller-evidencias-bucket"
+    
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     
     # Pydantic Configuration para leer el .env
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
 
 # Instancia global de las configuraciones para importar en todo el proyecto
 settings = Settings()
