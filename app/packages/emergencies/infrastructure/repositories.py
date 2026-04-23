@@ -32,6 +32,14 @@ class IncidentRepository:
         await self.session.refresh(incidente)
         return incidente
 
+    async def get_by_workshop(self, taller_id: uuid.UUID) -> List[Incidente]:
+        """Obtiene la lista de incidentes asignados a un taller."""
+        result = await self.session.execute(
+            select(Incidente).where(Incidente.id_taller == taller_id)
+            .order_by(Incidente.fecha_reporte.desc())
+        )
+        return result.scalars().all()
+
     # --- Evidencias ---
 
     async def add_evidence(self, evidencia: EvidenciaIncidente) -> EvidenciaIncidente:

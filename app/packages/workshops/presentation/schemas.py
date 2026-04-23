@@ -27,3 +27,6 @@ class TallerResponse(BaseModel):
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+class StatusUpdate(BaseModel):
+    nuevo_estado: str = Field(..., max_length=50, description="Ej: EN_CAMINO, EN_PROGRESO, COMPLETADO")

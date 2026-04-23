@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -11,6 +11,8 @@ from app.packages.emergencies.infrastructure.repositories import IncidentReposit
 from app.packages.emergencies.presentation.schemas import IncidentCreate, IncidentResponse, EvidenceResponse
 from app.packages.emergencies.application.create_incident import CreateIncidentUseCase
 from app.packages.emergencies.application.upload_evidence import UploadEvidenceUseCase
+from app.packages.emergencies.application.analyze_incident_ai import AnalyzeIncidentAIUseCase
+from app.packages.emergencies.application.tasks import run_full_incident_pipeline
 
 router = APIRouter()
 
@@ -38,15 +40,35 @@ async def report_incident(
 @router.post("/{incident_id}/evidence", response_model=EvidenceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_evidence(
     incident_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     evidencia_tipo: str = Form(...),
     current_user: Usuario = Depends(get_current_active_user),
     incident_repo: IncidentRepository = Depends(get_incident_repository),
     user_repo: UserRepository = Depends(get_user_repository)
 ):
-    """(CU6) Cargar una foto o audio como evidencia de un incidente activo (multipart/form-data)."""
+    """(CU6) Cargar evidencia y gatillar análisis de IA en segundo plano."""
     use_case = UploadEvidenceUseCase(incident_repo, user_repo)
-    return await use_case.execute(current_user, incident_id, file, evidencia_tipo)
+    evidence = await use_case.execute(current_user, incident_id, file, evidencia_tipo)
+    
+    # Disparar el pipeline completo (IA + Búsqueda de Taller)
+    background_tasks.add_task(run_full_incident_pipeline, incident_id)
+    
+    return evidence
+
+@router.post("/{incident_id}/analyze", response_model=IncidentResponse)
+async def manual_ai_analysis(
+    incident_id: uuid.UUID,
+    current_user: Usuario = Depends(get_current_active_user),
+    incident_repo: IncidentRepository = Depends(get_incident_repository)
+):
+    """Disparar manualmente el análisis de IA (útil para pruebas)."""
+    ai_use_case = AnalyzeIncidentAIUseCase(incident_repo)
+    result = await ai_use_case.execute(incident_id)
+    if not result:
+        from app.core.exceptions import NotFoundError
+        raise NotFoundError("Incidente no encontrado.")
+    return result
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)

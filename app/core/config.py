@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     AWS_REGION_NAME: str = "us-east-1"
     AWS_BUCKET_NAME: str = "taller-evidencias-bucket"
     
+    # IA - Roboflow
+    ROBOFLOW_API_URL: str = ""
+    ROBOFLOW_API_KEY: str = ""
+    ROBOFLOW_WORKSPACE: str = ""
+    ROBOFLOW_WORKFLOW_ID: str = ""
+    
+    # IA - Google Gemini
+    GEMINI_API_KEY: str = ""
+    
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     

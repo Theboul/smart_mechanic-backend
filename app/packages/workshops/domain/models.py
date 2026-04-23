@@ -87,3 +87,7 @@ class DisponibilidadTecnico(Base):
     disponibilidad = Column(Boolean, default=True, nullable=False)
 
     tecnico = relationship("Tecnico", back_populates="disponibilidades")
+
+
+# Constantes de Categorías
+CATEGORIA_MECANICA_GENERAL = "Mecánica General"
