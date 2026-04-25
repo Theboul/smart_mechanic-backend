@@ -13,7 +13,8 @@ class AsignacionIncidente(Base):
 
     id_asignacion = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_incidente = Column(UUID(as_uuid=True), ForeignKey("incidente.id_incidente"), nullable=False)
-    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("tecnico.id_tecnico"), nullable=False)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
+    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("tecnico.id_tecnico"), nullable=True)
     estado_asignacion = Column(String(50), default="ASIGNADO", nullable=False)
     score_asignacion = Column(Numeric(5, 2), nullable=True)  # Puntuación del algoritmo
     distancia_km = Column(Numeric(8, 2), nullable=True)       # Distancia calculada en km

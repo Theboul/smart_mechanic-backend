@@ -50,3 +50,37 @@ class WorkshopRepository:
         await self.session.commit()
         await self.session.refresh(admin_link)
         return admin_link
+
+    async def get_all(self) -> list[Taller]:
+        """Devuelve la lista completa de talleres registrados."""
+        result = await self.session.execute(select(Taller))
+        return list(result.scalars().all())
+
+    async def update_workshop(self, taller: Taller) -> Taller:
+        """Actualiza un taller existente en la base de datos."""
+        self.session.add(taller)
+        await self.session.commit()
+        await self.session.refresh(taller)
+        return taller
+
+    # --- Gestión de Técnicos ---
+
+    async def create_technician(self, tecnico):
+        self.session.add(tecnico)
+        await self.session.commit()
+        await self.session.refresh(tecnico)
+        return tecnico
+
+    async def get_technicians_by_workshop(self, taller_id: uuid.UUID):
+        from app.packages.workshops.domain.models import Tecnico
+        result = await self.session.execute(
+            select(Tecnico).where(Tecnico.id_taller == taller_id)
+        )
+        return list(result.scalars().all())
+
+    async def get_technician_by_id(self, tecnico_id: uuid.UUID):
+        from app.packages.workshops.domain.models import Tecnico
+        result = await self.session.execute(
+            select(Tecnico).where(Tecnico.id_tecnico == tecnico_id)
+        )
+        return result.scalars().first()

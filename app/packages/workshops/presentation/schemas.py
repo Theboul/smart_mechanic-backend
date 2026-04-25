@@ -24,9 +24,38 @@ class TallerResponse(BaseModel):
     telefono: Optional[str]
     email: Optional[str]
     direccion: Optional[str]
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
     is_active: bool
 
     model_config = {"from_attributes": True}
 
 class StatusUpdate(BaseModel):
     nuevo_estado: str = Field(..., max_length=50, description="Ej: EN_CAMINO, EN_PROGRESO, COMPLETADO")
+
+class IncidentAccept(BaseModel):
+    id_tecnico: uuid.UUID
+
+# --- Técnicos ---
+
+class TecnicoCreate(BaseModel):
+    nombre: str = Field(..., max_length=150)
+    telefono: str = Field(..., max_length=20)
+    correo: EmailStr = Field(..., alias="email") # Acepta 'email' en el JSON
+
+    model_config = {
+        "populate_by_name": True  # Permite usar 'correo' internamente en Python
+    }
+
+class TecnicoResponse(BaseModel):
+    id_tecnico: uuid.UUID
+    id_usuario: uuid.UUID
+    nombre: str
+    telefono: Optional[str]
+    estado: bool
+
+    model_config = {"from_attributes": True}
+
+class TecnicoUpdate(BaseModel):
+    nombre: Optional[str] = Field(None, max_length=150)
+    telefono: Optional[str] = Field(None, max_length=20)

@@ -17,41 +17,39 @@ class MatchWorkshopUseCase:
         self.assignment_repo = assignment_repo
         self.incident_repo = incident_repo
 
-    async def execute(self, id_incidente: uuid.UUID):
+    async def execute(self, id_incidente: uuid.UUID, exclude_ids: list[uuid.UUID] = None):
         # 1. Obtener el incidente analizado
         incidente = await self.incident_repo.get_by_id(id_incidente)
         if not incidente or not incidente.ubicacion_emergencia:
             logger.warning(f"Incidente {id_incidente} no apto para asignación (falta ubicación)")
             return None
-            
-        if incidente.id_taller:
-            logger.info(f"Incidente {id_incidente} ya tiene taller asignado.")
-            return None
 
-        logger.info(f"Buscando taller para incidente {id_incidente} en {incidente.ubicacion_emergencia}")
+        logger.info(f"Buscando taller para incidente {id_incidente} en {incidente.ubicacion_emergencia} (Excluyendo: {exclude_ids})")
 
         # 2. Buscar talleres cercanos (Radio 15km)
         nearby = await self.assignment_repo.get_nearby_workshops(
             point=incidente.ubicacion_emergencia,
             radius_km=15.0,
-            limit=1
+            limit=1,
+            exclude_ids=exclude_ids
         )
-        
+
         if not nearby:
-            logger.error(f"No se encontraron talleres cerca del incidente {id_incidente}")
+            logger.error(f"No se encontraron talleres disponibles cerca del incidente {id_incidente}")
             incidente.estado_incidente = "SIN_TALLER_DISPONIBLE"
+            incidente.id_taller = None # Limpiamos si no hay nada
             await self.incident_repo.session.commit()
             return None
 
-        # Tomamos el primero (el más cercano)
+        # Tomamos el primero (el más cercano disponible)
         best_taller, distance_meters = nearby[0]
-        
         logger.info(f"Taller encontrado: {best_taller.nombre} a {distance_meters:.2f}m")
-
+            
         # 3. Crear asignación
         new_assignment = AsignacionIncidente(
             id_incidente=id_incidente,
-            id_tecnico=None, # Aún no asignado a un técnico específico, se asigna al taller primero
+            id_taller=best_taller.id_taller,
+            id_tecnico=None,
             estado_asignacion="PENDIENTE_ACEPTACION",
             distancia_km=distance_meters / 1000.0
         )
@@ -77,4 +75,27 @@ class MatchWorkshopUseCase:
         await self.assignment_repo.create_assignment(new_assignment)
         await self.incident_repo.session.commit()
         
+        # 4. Notificación Real-time (WebSocket)
+        try:
+            from app.core.notifications import manager
+            # Al Taller
+            await manager.notify_workshop(
+                str(best_taller.id_taller), 
+                {"type": "NEW_ASSIGNMENT", "id": str(id_incidente)}
+            )
+            # Al Cliente (Dueño del vehículo)
+            if incidente.vehiculo:
+                await manager.notify_user(
+                    str(incidente.vehiculo.id_usuario),
+                    {
+                        "type": "WORKSHOP_ASSIGNED", 
+                        "id": str(id_incidente),
+                        "workshop_name": best_taller.nombre
+                    }
+                )
+            # Al SuperAdmin
+            await manager.notify_admins({"type": "NEW_ASSIGNMENT", "id": str(id_incidente)})
+        except Exception as e:
+            logger.error(f"Error al notificar por WebSocket: {str(e)}")
+
         return new_assignment

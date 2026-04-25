@@ -15,6 +15,7 @@ class Incidente(Base):
     id_incidente = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_vehiculo = Column(UUID(as_uuid=True), ForeignKey("vehiculo.id_vehiculo"), nullable=False)
     id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
+    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("tecnico.id_tecnico"), nullable=True)
 
     # Coordenadas GPS de la emergencia — PostGIS POINT
     ubicacion_emergencia = Column(Geography('POINT', srid=4326), nullable=True)

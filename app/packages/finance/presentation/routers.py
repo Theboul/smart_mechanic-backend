@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
+from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
@@ -39,3 +40,32 @@ async def process_payment(
         id_incidente=incident_id,
         monto_total=payment_in.monto_total
     )
+
+@router.get("/reports", response_model=List[PaymentResponse])
+async def get_financial_reports(
+    workshop_id: Optional[uuid.UUID] = Query(None),
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """(CU19/CU25) Obtener reportes de pagos. Multi-tenant."""
+    from sqlalchemy import select
+    from app.packages.finance.domain.models import Pago
+    
+    query = select(Pago)
+    
+    # Lógica de Seguridad Multi-tenant
+    if current_user.rol_nombre == "admin_taller":
+        workshop_repo = WorkshopRepository(db)
+        workshop = await workshop_repo.get_by_admin(current_user.id_usuario)
+        if not workshop:
+            return []
+        query = query.where(Pago.id_taller == workshop.id_taller)
+    elif current_user.rol_nombre == "superadmin":
+        if workshop_id:
+            query = query.where(Pago.id_taller == workshop_id)
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+        
+    result = await db.execute(query.order_by(Pago.fecha_pago.desc()))
+    return result.scalars().all()

@@ -16,7 +16,8 @@ class AssignmentRepository:
         point, 
         radius_km: float = 10.0, 
         limit: int = 5,
-        required_specialty: str = None
+        required_specialty: str = None,
+        exclude_ids: List[uuid.UUID] = None
     ) -> List[Tuple[Taller, float]]:
         """
         Busca talleres cercanos a un punto geográfico (Geography).
@@ -35,6 +36,9 @@ class AssignmentRepository:
                 ST_DWithin(Taller.ubicacion, point, radius_meters)
             )
         )
+        
+        if exclude_ids:
+            query = query.where(Taller.id_taller.not_in(exclude_ids))
         
         # Filtro de especialidad (Si se requiere)
         # En una versión avanzada, uniríamos con TallerCategoriaServicio

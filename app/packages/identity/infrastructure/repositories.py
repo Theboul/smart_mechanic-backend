@@ -69,3 +69,37 @@ class UserRepository:
             select(Vehiculo).where(Vehiculo.id_vehiculo == vehicle_id)
         )
         return result.scalars().first()
+
+    # --- Filtrado Multi-tenant ---
+
+    async def get_all_with_filters(self, role: Optional[str] = None, workshop_id: Optional[uuid.UUID] = None) -> List[Usuario]:
+        """
+        Obtiene usuarios filtrados por rol y/o taller.
+        Si hay workshop_id, filtra administradores, técnicos y clientes atendidos por dicho taller.
+        """
+        from app.packages.workshops.domain.models import AdministradorTaller, Tecnico
+        from app.packages.emergencies.domain.models import Incidente
+        from sqlalchemy import or_
+
+        query = select(Usuario).join(Rol, Usuario.id_rol == Rol.id_rol)
+
+        if role:
+            query = query.where(Rol.nombre == role)
+
+        if workshop_id:
+            # Filtro complejo: Usuarios vinculados al taller por admin, técnico o incidentes (clientes)
+            query = query.outerjoin(AdministradorTaller, Usuario.id_usuario == AdministradorTaller.id_usuario)
+            query = query.outerjoin(Tecnico, Usuario.id_usuario == Tecnico.id_usuario)
+            query = query.outerjoin(Vehiculo, Usuario.id_usuario == Vehiculo.id_usuario)
+            query = query.outerjoin(Incidente, Vehiculo.id_vehiculo == Incidente.id_vehiculo)
+
+            query = query.where(
+                or_(
+                    AdministradorTaller.id_taller == workshop_id,
+                    Tecnico.id_taller == workshop_id,
+                    Incidente.id_taller == workshop_id
+                )
+            )
+
+        result = await self.session.execute(query.distinct())
+        return list(result.scalars().all())

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 from app.core.config import settings
 from app.core.exceptions import setup_exception_handlers
+from app.core.middleware import AuditMiddleware
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,11 +22,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(AuditMiddleware)
+
 # Inicializar manejadores de excepciones globales
 setup_exception_handlers(app)
 
 # Incluir el router principal que agrupa los demás
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+from app.packages.identity.presentation.websocket import router as ws_router
+app.include_router(ws_router)
 
 @app.get("/")
 def read_root():

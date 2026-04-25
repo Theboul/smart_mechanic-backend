@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
 from typing import Optional, List
 import uuid
 
@@ -22,7 +23,8 @@ class IncidentRepository:
 
     async def get_by_id(self, incident_id: uuid.UUID) -> Optional[Incidente]:
         result = await self.session.execute(
-            select(Incidente).where(Incidente.id_incidente == incident_id)
+            select(Incidente).options(joinedload(Incidente.vehiculo))
+            .where(Incidente.id_incidente == incident_id)
         )
         return result.scalars().first()
 
@@ -35,7 +37,16 @@ class IncidentRepository:
     async def get_by_workshop(self, taller_id: uuid.UUID) -> List[Incidente]:
         """Obtiene la lista de incidentes asignados a un taller."""
         result = await self.session.execute(
-            select(Incidente).where(Incidente.id_taller == taller_id)
+            select(Incidente).options(joinedload(Incidente.vehiculo))
+            .where(Incidente.id_taller == taller_id)
+            .order_by(Incidente.fecha_reporte.desc())
+        )
+        return result.scalars().all()
+
+    async def get_all(self) -> List[Incidente]:
+        """Obtiene todos los incidentes del sistema (SuperAdmin)."""
+        result = await self.session.execute(
+            select(Incidente).options(joinedload(Incidente.vehiculo))
             .order_by(Incidente.fecha_reporte.desc())
         )
         return result.scalars().all()

@@ -28,3 +28,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"exp": expire})
     encoded_jwt = jose_jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
+def decode_token(token: str) -> dict:
+    """Decodifica un JWT y devuelve su contenido (payload)."""
+    return jose_jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

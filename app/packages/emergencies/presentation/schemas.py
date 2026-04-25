@@ -41,6 +41,9 @@ class IncidentResponse(BaseModel):
     transcripcion_audio: Optional[str]
     resumen_ia: Optional[str]
     analisis_consolidado: Optional[str]
+    fecha_reporte: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
     evidencias: List[EvidenceResponse] = []
 
     model_config = {"from_attributes": True}

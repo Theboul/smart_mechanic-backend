@@ -72,4 +72,17 @@ class AnalyzeIncidentAIUseCase:
         await self.repo.session.refresh(incidente)
         
         logger.info(f"Incidente {id_incidente} analizado correctamente por IA")
+
+        # 5. (CU12) Disparar Asignación Inteligente Automática
+        try:
+            from app.packages.assignment.application.match_workshop import MatchWorkshopUseCase
+            from app.packages.assignment.infrastructure.repositories import AssignmentRepository
+            
+            assignment_repo = AssignmentRepository(self.repo.session)
+            match_use_case = MatchWorkshopUseCase(assignment_repo, self.repo)
+            await match_use_case.execute(id_incidente)
+            logger.info(f"Asignación automática disparada para incidente {id_incidente}")
+        except Exception as e:
+            logger.error(f"Error al disparar la asignación automática: {str(e)}")
+
         return incidente
