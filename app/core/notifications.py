@@ -36,11 +36,13 @@ class ConnectionManager:
     async def notify_workshop(self, workshop_id: str, message: dict):
         """Envía un mensaje a todos los conectados de un taller específico"""
         if workshop_id in self.workshop_channels:
-            for connection in self.workshop_channels[workshop_id]:
+            # Iteramos sobre una copia [:] para poder eliminar elementos con seguridad
+            for connection in self.workshop_channels[workshop_id][:]:
                 try:
                     await connection.send_text(json.dumps(message))
                 except Exception:
-                    self.workshop_channels[workshop_id].remove(connection)
+                    if connection in self.workshop_channels[workshop_id]:
+                        self.workshop_channels[workshop_id].remove(connection)
 
     async def notify_user(self, user_id: str, message: dict):
         """Envía un mensaje a un usuario específico"""
@@ -52,11 +54,13 @@ class ConnectionManager:
 
     async def notify_admins(self, message: dict):
         """Envía un mensaje a todos los SuperAdmins"""
-        for connection in self.admin_connections:
+        # Iteramos sobre una copia [:] para poder eliminar elementos con seguridad
+        for connection in self.admin_connections[:]:
             try:
                 await connection.send_text(json.dumps(message))
             except Exception:
-                self.admin_connections.remove(connection)
+                if connection in self.admin_connections:
+                    self.admin_connections.remove(connection)
 
 # Instancia única para toda la aplicación
 manager = ConnectionManager()
