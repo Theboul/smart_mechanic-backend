@@ -24,9 +24,9 @@ class AnalyzeIncidentAIUseCase:
         if not incidente:
             return None
         
-        # IDEMPOTENCIA: Si ya está asignado a un taller, no re-analizar automáticamente.
-        if incidente.estado_incidente in ["ASIGNADO", "TALLER_ASIGNADO", "FINALIZADO"]:
-            logger.info(f"Incidente {id_incidente} en estado final o asignado ({incidente.estado_incidente}). Omitiendo.")
+        # IDEMPOTENCIA: No re-analizar si ya está en proceso, analizado o asignado.
+        if incidente.estado_incidente in ["ANALIZANDO", "ANALIZADO", "ASIGNADO", "TALLER_ASIGNADO", "FINALIZADO"]:
+            logger.info(f"Incidente {id_incidente} ya procesado o en curso ({incidente.estado_incidente}). Omitiendo.")
             return incidente
 
         # BLOQUEO: Marcamos como ANALIZANDO inmediatamente para evitar duplicidad
@@ -99,10 +99,6 @@ class AnalyzeIncidentAIUseCase:
         await self.repo.session.refresh(incidente)
         
         logger.info(f"Incidente {id_incidente} analizado correctamente por IA")
-
-        await self.repo.session.commit()
-        await self.repo.session.refresh(incidente)
-        
-        logger.info(f"Incidente {id_incidente} analizado correctamente por IA")
+        return incidente
 
         return incidente

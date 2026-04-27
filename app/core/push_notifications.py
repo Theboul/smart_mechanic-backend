@@ -43,14 +43,21 @@ class PushNotificationService:
                     title=title,
                     body=body,
                 ),
+                android=messaging.AndroidConfig(
+                    priority="high",
+                    notification=messaging.AndroidNotification(
+                        channel_id="high_importance_channel",
+                        click_action="FLUTTER_NOTIFICATION_CLICK",
+                    ),
+                ),
                 data=data or {},
                 token=token,
             )
             response = messaging.send(message)
-            logger.info(f"Notificación enviada con éxito: {response}")
+            logger.info(f"✅ PUSH: Notificación enviada con éxito. ID: {response}")
             return response
         except Exception as e:
-            logger.error(f"Error al enviar notificación push: {e}")
+            logger.error(f"❌ PUSH: Error al enviar notificación a Firebase: {e}")
             return None
 
 # Instancia global

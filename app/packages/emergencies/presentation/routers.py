@@ -154,9 +154,6 @@ async def upload_evidence(
     use_case = UploadEvidenceUseCase(incident_repo, user_repo)
     evidence = await use_case.execute(current_user, incident_id, file, evidencia_tipo)
     
-    # Disparar el pipeline completo (IA + Búsqueda de Taller)
-    background_tasks.add_task(run_full_incident_pipeline, incident_id)
-    
     return evidence
 
 @router.post("/{incident_id}/analyze", response_model=IncidentResponse)
@@ -172,6 +169,20 @@ async def manual_ai_analysis(
         from app.core.exceptions import NotFoundError
         raise NotFoundError("Incidente no encontrado.")
     return _build_incident_response(result)
+
+
+@router.post("/{incident_id}/process", status_code=status.HTTP_202_ACCEPTED)
+async def process_incident_pipeline(
+    incident_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    (CU Móvil) Gatillar el pipeline completo (IA + Asignación) una vez 
+    que todas las evidencias han sido cargadas.
+    """
+    background_tasks.add_task(run_full_incident_pipeline, incident_id)
+    return {"message": "Pipeline iniciado en segundo plano"}
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)

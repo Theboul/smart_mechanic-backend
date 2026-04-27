@@ -133,9 +133,11 @@ class IncidentRepository:
 
     async def get_history_by_user(self, user_id: uuid.UUID) -> List[Incidente]:
         """Obtiene el historial completo de incidentes de un usuario."""
+        import logging
+        logging.getLogger("app").info(f"DEBUG: Obteniendo historial para user_id: {user_id}")
         result = await self.session.execute(
             select(Incidente)
-            .join(Vehiculo)
+            .join(Vehiculo, Incidente.id_vehiculo == Vehiculo.id_vehiculo)
             .options(
                 joinedload(Incidente.vehiculo),
                 joinedload(Incidente.taller),

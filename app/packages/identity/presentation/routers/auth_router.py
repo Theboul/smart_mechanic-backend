@@ -60,7 +60,9 @@ async def update_fcm_token(
 ):
     """(CU_PUSH) Actualizar el token FCM del usuario para notificaciones push"""
     token = fcm_in.get("fcm_token")
-    if not token:
+    import logging
+    logging.getLogger("app").info(f"📲 PUSH: Recibido token FCM para usuario {current_user.id_usuario}: {token[:15]}...")
+    if token is None:
         raise HTTPException(status_code=400, detail="fcm_token es requerido")
         
     success = await repo.update_fcm_token(current_user.id_usuario, token)
