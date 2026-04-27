@@ -26,7 +26,7 @@ class IncidentRepository:
         result = await self.session.execute(
             select(Incidente)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
@@ -130,6 +130,23 @@ class IncidentRepository:
             .order_by(Incidente.fecha_reporte.desc())
         )
         return result.scalars().first()
+
+    async def get_history_by_user(self, user_id: uuid.UUID) -> List[Incidente]:
+        """Obtiene el historial completo de incidentes de un usuario."""
+        result = await self.session.execute(
+            select(Incidente)
+            .join(Vehiculo)
+            .options(
+                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.taller),
+                joinedload(Incidente.tecnico),
+                selectinload(Incidente.evidencias),
+                selectinload(Incidente.historial)
+            )
+            .where(Vehiculo.id_usuario == user_id)
+            .order_by(Incidente.fecha_reporte.desc())
+        )
+        return result.scalars().unique().all()
 
     # --- Evidencias ---
 

@@ -16,6 +16,15 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+.env.*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media
+*.json
 
 # Bases de Datos locales (SQLite)
 *.sqlite3

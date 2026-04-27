@@ -24,10 +24,9 @@ class AnalyzeIncidentAIUseCase:
         if not incidente:
             return None
         
-        # IDEMPOTENCIA: Si ya está siendo analizado, no repetir.
-        # Permitimos ANALIZADO para que nuevas evidencias (audio tras foto) gatillen re-análisis.
-        if incidente.estado_incidente in ["ANALIZANDO", "ASIGNADO", "TALLER_ASIGNADO"]:
-            logger.info(f"Incidente {id_incidente} en estado {incidente.estado_incidente}. Omitiendo.")
+        # IDEMPOTENCIA: Si ya está asignado a un taller, no re-analizar automáticamente.
+        if incidente.estado_incidente in ["ASIGNADO", "TALLER_ASIGNADO", "FINALIZADO"]:
+            logger.info(f"Incidente {id_incidente} en estado final o asignado ({incidente.estado_incidente}). Omitiendo.")
             return incidente
 
         # BLOQUEO: Marcamos como ANALIZANDO inmediatamente para evitar duplicidad

@@ -79,6 +79,18 @@ async def get_my_active_incident(
     return _build_incident_response(incident)
 
 
+@router.get("/me/history", response_model=list[IncidentResponse])
+async def get_my_incident_history(
+    current_user: Usuario = Depends(get_current_active_user),
+    incident_repo: IncidentRepository = Depends(get_incident_repository)
+):
+    """
+    (CU Móvil) Obtiene el historial completo de incidentes del usuario autenticado.
+    """
+    incidentes = await incident_repo.get_history_by_user(current_user.id_usuario)
+    return [_build_incident_response(i) for i in incidentes]
+
+
 @router.get("/", response_model=list[IncidentResponse])
 async def list_all_incidents(
     current_user: Usuario = Depends(get_current_active_user),

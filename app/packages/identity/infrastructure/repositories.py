@@ -46,6 +46,16 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
+    async def update_fcm_token(self, user_id: uuid.UUID, token: str) -> bool:
+        """Actualiza el token de notificaciones push del usuario."""
+        user = await self.get_by_id(user_id)
+        if not user:
+            return False
+        # Si el token es cadena vacía, guardamos None (Logout)
+        user.fcm_token = token if token else None
+        await self.session.commit()
+        return True
+
     # --- Vehiculo ---
 
     async def create_vehicle(self, vehicle: Vehiculo) -> Vehiculo:
