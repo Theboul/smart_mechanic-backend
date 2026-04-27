@@ -15,7 +15,6 @@ class Incidente(Base):
     id_incidente = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_vehiculo = Column(UUID(as_uuid=True), ForeignKey("vehiculo.id_vehiculo"), nullable=False)
     id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
-    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("tecnico.id_tecnico"), nullable=True)
 
     # Coordenadas GPS de la emergencia — PostGIS POINT
     ubicacion_emergencia = Column(Geography('POINT', srid=4326), nullable=True)
@@ -30,9 +29,13 @@ class Incidente(Base):
     resumen_ia = Column(Text, nullable=True)
     analisis_consolidado = Column(Text, nullable=True)
 
+    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=True)
+
     fecha_reporte = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     vehiculo = relationship("Vehiculo")
+    taller = relationship("Taller")
+    tecnico = relationship("Tecnico", primaryjoin="Incidente.id_tecnico == Tecnico.id_usuario", foreign_keys=[id_tecnico])
     evidencias = relationship("EvidenciaIncidente", back_populates="incidente", cascade="all, delete-orphan")
     historial = relationship("HistorialIncidente", back_populates="incidente", cascade="all, delete-orphan")
 

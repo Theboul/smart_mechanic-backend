@@ -70,6 +70,16 @@ class UserRepository:
         )
         return result.scalars().first()
 
+    async def update_vehicle(self, vehicle: Vehiculo) -> Vehiculo:
+        self.session.add(vehicle)
+        await self.session.commit()
+        await self.session.refresh(vehicle)
+        return vehicle
+
+    async def delete_vehicle(self, vehicle: Vehiculo) -> None:
+        await self.session.delete(vehicle)
+        await self.session.commit()
+
     # --- Filtrado Multi-tenant ---
 
     async def get_all_with_filters(self, role: Optional[str] = None, workshop_id: Optional[uuid.UUID] = None) -> List[Usuario]:

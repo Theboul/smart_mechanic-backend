@@ -34,6 +34,10 @@ class IncidentResponse(BaseModel):
     id_incidente: uuid.UUID
     id_vehiculo: uuid.UUID
     id_taller: Optional[uuid.UUID]
+    id_tecnico: Optional[uuid.UUID] = None
+    workshop_name: Optional[str] = None
+    technician_name: Optional[str] = None
+    technician_phone: Optional[str] = None
     descripcion: Optional[str]
     telefono: Optional[str]
     estado_incidente: str

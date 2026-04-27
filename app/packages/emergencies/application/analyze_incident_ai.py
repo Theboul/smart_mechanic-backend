@@ -24,35 +24,63 @@ class AnalyzeIncidentAIUseCase:
         if not incidente:
             return None
         
+        # IDEMPOTENCIA: Si ya está siendo analizado, no repetir.
+        # Permitimos ANALIZADO para que nuevas evidencias (audio tras foto) gatillen re-análisis.
+        if incidente.estado_incidente in ["ANALIZANDO", "ASIGNADO", "TALLER_ASIGNADO"]:
+            logger.info(f"Incidente {id_incidente} en estado {incidente.estado_incidente}. Omitiendo.")
+            return incidente
+
+        # BLOQUEO: Marcamos como ANALIZANDO inmediatamente para evitar duplicidad
+        logger.info(f"Bloqueando incidente {id_incidente} para análisis inteligente...")
+        incidente.estado_incidente = "ANALIZANDO"
+        await self.repo.session.commit()
+        await self.repo.session.refresh(incidente)
+
         logger.info(f"Iniciando análisis inteligente para incidente {id_incidente}")
         
         # 2. Procesar evidencias
-        # Buscamos la última foto y el último audio subido (si existen)
-        last_photo = next((e for e in reversed(incidente.evidencias) if e.evidencia_tipo == "foto"), None)
-        last_audio = next((e for e in reversed(incidente.evidencias) if e.evidencia_tipo == "audio"), None)
+        # Buscamos la última foto y el último audio subido (si existen) - Case insensitive
+        logger.info(f"Buscando evidencias para {id_incidente}. Total: {len(incidente.evidencias)}")
+        for e in incidente.evidencias:
+            logger.info(f" - Evidencia: {e.evidencia_tipo} | URL: {e.archivo_url}")
+
+        last_photo = next((e for e in reversed(incidente.evidencias) if e.evidencia_tipo.upper() == "FOTO"), None)
+        last_audio = next((e for e in reversed(incidente.evidencias) if e.evidencia_tipo.upper() == "AUDIO"), None)
         
+        logger.info(f"Seleccionados -> Foto: {last_photo.archivo_url if last_photo else 'None'}, Audio: {last_audio.archivo_url if last_audio else 'None'}")
+
         vision_results = {}
         nlp_results = {}
         
         if last_photo:
+            logger.info(f"Analizando imagen con Roboflow: {last_photo.archivo_url}")
             vision_results = await self.vision_service.analyze_image(last_photo.archivo_url)
             # Actualizar la evidencia con el análisis
             last_photo.analisis_imagen = f"Detectado: {vision_results.get('top_class')}"
             last_photo.confianza_deteccion = vision_results.get("confidence")
 
-        # Siempre analizamos la descripción del incidente con Gemini
-        nlp_results = await self.nlp_service.process_report(incidente.descripcion)
+        # Siempre analizamos con Gemini, pasando datos de visión y audio si existen
+        logger.info("Enviando reporte a NLPService (Gemini Multimodal)...")
+        nlp_results = await self.nlp_service.process_report(
+            transcription_text=incidente.descripcion or "", 
+            vision_data=vision_results,
+            audio_url=last_audio.archivo_url if last_audio else None,
+            image_url=last_photo.archivo_url if last_photo else None
+        )
+        logger.info(f"Resultado NLP: {nlp_results}")
         
         if last_audio and nlp_results:
-            last_audio.transcripcion = nlp_results.get("summary")
+            # Guardamos la transcripción REAL del audio
+            last_audio.transcripcion = nlp_results.get("transcription")
         
         # 3. Consolidar resultados
-        # Generamos el resumen inteligente final
-        resumen_ia = (
-            f"DIAGNÓSTICO IA: {nlp_results.get('summary', 'Reporte verbal no disponible')}. "
-            f"EVIDENCIA VISUAL: {vision_results.get('top_class', 'No analizada')}. "
-            f"Sugerencia: {nlp_results.get('entities', {}).get('falla', 'Revisión general necesaria')}"
-        )
+        # Generamos el resumen inteligente final usando el texto de Gemini
+        resumen_ia = nlp_results.get('summary', 'Estamos analizando tu caso. Un taller se pondrá en contacto pronto.')
+        
+        # Guardamos el análisis detallado (falla + gravedad)
+        falla = nlp_results.get('falla', 'Desconocida')
+        gravedad = nlp_results.get('gravedad', 'Media')
+        incidente.analisis_consolidado = f"Falla: {falla} | Gravedad: {gravedad}"
         
         # 4. Actualizar incidente
         incidente.resumen_ia = resumen_ia
@@ -73,16 +101,9 @@ class AnalyzeIncidentAIUseCase:
         
         logger.info(f"Incidente {id_incidente} analizado correctamente por IA")
 
-        # 5. (CU12) Disparar Asignación Inteligente Automática
-        try:
-            from app.packages.assignment.application.match_workshop import MatchWorkshopUseCase
-            from app.packages.assignment.infrastructure.repositories import AssignmentRepository
-            
-            assignment_repo = AssignmentRepository(self.repo.session)
-            match_use_case = MatchWorkshopUseCase(assignment_repo, self.repo)
-            await match_use_case.execute(id_incidente)
-            logger.info(f"Asignación automática disparada para incidente {id_incidente}")
-        except Exception as e:
-            logger.error(f"Error al disparar la asignación automática: {str(e)}")
+        await self.repo.session.commit()
+        await self.repo.session.refresh(incidente)
+        
+        logger.info(f"Incidente {id_incidente} analizado correctamente por IA")
 
         return incidente

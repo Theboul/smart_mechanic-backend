@@ -46,6 +46,10 @@ def _build_incident_response(incident) -> IncidentResponse:
         id_incidente=incident.id_incidente,
         id_vehiculo=incident.id_vehiculo,
         id_taller=incident.id_taller,
+        id_tecnico=incident.id_tecnico,
+        workshop_name=incident.taller.nombre if incident.taller else None,
+        technician_name=incident.tecnico.nombre if incident.tecnico else None,
+        technician_phone=incident.tecnico.telefono if incident.tecnico else None,
         descripcion=incident.descripcion,
         telefono=incident.telefono,
         estado_incidente=incident.estado_incidente,
@@ -58,6 +62,21 @@ def _build_incident_response(incident) -> IncidentResponse:
         longitud=longitud,
         evidencias=[EvidenceResponse.model_validate(e) for e in incident.evidencias]
     )
+
+
+@router.get("/me/active", response_model=Optional[IncidentResponse])
+async def get_my_active_incident(
+    current_user: Usuario = Depends(get_current_active_user),
+    incident_repo: IncidentRepository = Depends(get_incident_repository)
+):
+    """
+    (CU Móvil) Consulta si el usuario tiene una emergencia activa.
+    Retorna el incidente con detalles de taller y técnico si existen.
+    """
+    incident = await incident_repo.get_active_by_user(current_user.id_usuario)
+    if not incident:
+        return None
+    return _build_incident_response(incident)
 
 
 @router.get("/", response_model=list[IncidentResponse])
@@ -155,3 +174,33 @@ async def get_incident(
     if not incidente:
         raise NotFoundError("Incidente no encontrado.")
     return _build_incident_response(incidente)
+@router.post("/{incident_id}/cancel", response_model=IncidentResponse)
+async def cancel_incident(
+    incident_id: uuid.UUID,
+    current_user: Usuario = Depends(get_current_active_user),
+    incident_repo: IncidentRepository = Depends(get_incident_repository)
+):
+    """(CU Móvil) Cancelar una emergencia activa."""
+    from app.core.exceptions import NotFoundError
+    from fastapi import HTTPException
+    
+    # Verificación de seguridad: ¿Este incidente le pertenece al usuario actual?
+    incident = await incident_repo.get_by_id(incident_id)
+    if not incident:
+        raise NotFoundError("Incidente no encontrado.")
+        
+    if incident.vehiculo.id_usuario != current_user.id_usuario:
+        raise HTTPException(
+            status_code=403, 
+            detail="No tienes permiso para cancelar este incidente."
+        )
+
+    result = await incident_repo.cancel_incident(incident_id, actor=f"CLIENTE:{current_user.nombre}")
+    if not result:
+        raise NotFoundError("Error al cancelar el incidente.")
+    
+    # Notificar a la web que se canceló
+    from app.core.notifications import manager
+    await manager.notify_admins({"type": "INCIDENT_CANCELLED", "id": str(incident_id)})
+    
+    return _build_incident_response(result)

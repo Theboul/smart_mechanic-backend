@@ -40,12 +40,23 @@ class CloseIncidentUseCase:
         
         # 4. Actualizar incidente e Historial
         estado_anterior = incidente.estado_incidente
-        incidente.estado_incidente = "FINALIZADO"
+        incidente.estado_incidente = "COMPLETADO"
         
+        # Liberar al técnico si existe
+        if incidente.id_tecnico:
+            from app.packages.workshops.domain.models import Tecnico
+            from sqlalchemy.future import select
+            result = await self.incident_repo.session.execute(
+                select(Tecnico).where(Tecnico.id_usuario == incidente.id_tecnico)
+            )
+            tecnico = result.scalar_one_or_none()
+            if tecnico:
+                tecnico.estado = True
+
         historial = HistorialIncidente(
             id_incidente=id_incidente,
             incidente_estado_anterior=estado_anterior,
-            incidente_estado_nuevo="FINALIZADO",
+            incidente_estado_nuevo="COMPLETADO",
             historial_actor="SISTEMA_FINANCIERO",
             fecha=None
         )

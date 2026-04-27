@@ -26,6 +26,19 @@ async def run_full_incident_pipeline(incident_id: uuid.UUID):
             logger.error(f"Pipeline falló en análisis de IA para {incident_id}")
             return
 
+        # Notificar al cliente que el análisis de IA está listo
+        from app.core.notifications import manager
+        if incident.vehiculo:
+            await manager.notify_user(
+                str(incident.vehiculo.id_usuario),
+                {
+                    "type": "ANALYSIS_COMPLETED",
+                    "id": str(incident_id),
+                    "resumen_ia": incident.resumen_ia,
+                    "analisis_consolidado": incident.analisis_consolidado
+                }
+            )
+
         # 2. Asignación automática
         match_use_case = MatchWorkshopUseCase(assignment_repo, incident_repo)
         assignment = await match_use_case.execute(incident_id)

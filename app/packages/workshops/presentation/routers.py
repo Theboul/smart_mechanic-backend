@@ -96,6 +96,10 @@ def _build_incident_response(incident) -> IncidentResponse:
         id_incidente=incident.id_incidente,
         id_vehiculo=incident.id_vehiculo,
         id_taller=incident.id_taller,
+        id_tecnico=incident.id_tecnico,
+        workshop_name=incident.taller.nombre if incident.taller else None,
+        technician_name=incident.tecnico.nombre if incident.tecnico else None,
+        technician_phone=incident.tecnico.telefono if incident.tecnico else None,
         descripcion=incident.descripcion,
         telefono=incident.telefono,
         estado_incidente=incident.estado_incidente,
@@ -224,7 +228,9 @@ async def update_assignment_status(
     await manager.notify_admins({"type": "STATUS_UPDATED", "id": str(incident_id)})
 
     return _build_incident_response(incident)
-
+    
+    return _build_incident_response(incident)
+    
 # --- Técnicos ---
 
 @router.post("/me/technicians", response_model=TecnicoResponse, status_code=status.HTTP_201_CREATED)
@@ -338,7 +344,11 @@ async def accept_assignment(
     if not taller:
         raise ForbiddenError("No eres administrador de un taller.")
         
-    use_case = AcceptRejectIncidentUseCase(IncidentRepository(db), AssignmentRepository(db))
+    use_case = AcceptRejectIncidentUseCase(
+        IncidentRepository(db), 
+        AssignmentRepository(db), 
+        WorkshopRepository(db)
+    )
     incident = await use_case.accept(taller.id_taller, incident_id, accept_in.id_tecnico, current_user.nombre)
 
     # Notificar

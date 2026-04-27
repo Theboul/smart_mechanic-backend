@@ -11,7 +11,7 @@ from app.packages.identity.presentation.schemas.user_schemas import UserProfileU
 from app.packages.identity.application.user_use_cases.update_profile import UpdateProfileUseCase
 from app.packages.identity.application.user_use_cases.register_vehicle import RegisterVehicleUseCase
 from app.packages.workshops.infrastructure.repositories import WorkshopRepository
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ForbiddenError, NotFoundError
 import uuid
 from typing import Optional
 
@@ -82,3 +82,37 @@ async def list_my_vehicles(
 ):
     """Consultar Vehículos: Retorna toda la flota del cliente."""
     return await repo.get_vehicles_by_user(current_user.id_usuario)
+
+@users_router.put("/me/vehicles/{vehicle_id}", response_model=VehicleResponse)
+async def update_my_vehicle(
+    vehicle_id: uuid.UUID,
+    vehicle_in: VehicleCreate,
+    current_user: Usuario = Depends(get_current_active_user),
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """Actualizar Vehículo: Modifica los datos de un vehículo propio."""
+    vehicle = await repo.get_vehicle_by_id(vehicle_id)
+    if not vehicle or vehicle.id_usuario != current_user.id_usuario:
+        raise NotFoundError("Vehículo no encontrado o no pertenece al usuario.")
+    
+    vehicle.matricula = vehicle_in.matricula
+    vehicle.marca = vehicle_in.marca
+    vehicle.modelo = vehicle_in.modelo
+    vehicle.ano = vehicle_in.ano
+    vehicle.color = vehicle_in.color
+    
+    return await repo.update_vehicle(vehicle)
+
+@users_router.delete("/me/vehicles/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_vehicle(
+    vehicle_id: uuid.UUID,
+    current_user: Usuario = Depends(get_current_active_user),
+    repo: UserRepository = Depends(get_user_repository)
+):
+    """Eliminar Vehículo: Borra un vehículo del garaje del cliente."""
+    vehicle = await repo.get_vehicle_by_id(vehicle_id)
+    if not vehicle or vehicle.id_usuario != current_user.id_usuario:
+        raise NotFoundError("Vehículo no encontrado o no pertenece al usuario.")
+    
+    await repo.delete_vehicle(vehicle)
+    return None

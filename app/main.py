@@ -14,15 +14,16 @@ app = FastAPI(
 # Configuración de CORS
 origins = settings.BACKEND_CORS_ORIGINS
 
+app.add_middleware(AuditMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
-
-app.add_middleware(AuditMiddleware)
 
 # Inicializar manejadores de excepciones globales
 setup_exception_handlers(app)

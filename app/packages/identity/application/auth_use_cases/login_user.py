@@ -8,7 +8,7 @@ class LoginUserUseCase:
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
 
-    async def execute(self, user_in: UserLogin) -> TokenSchema:
+    async def execute(self, user_in: UserLogin, ip: str = None) -> TokenSchema:
         """(CU2) Autenticar usuario con correo y contraseña, devolviendo un JWT."""
         user = await self.user_repository.get_by_email(user_in.correo)
 
@@ -22,6 +22,7 @@ class LoginUserUseCase:
         access_token = create_access_token(
             data={"sub": str(user.id_usuario), "role": user.rol_nombre}
         )
+
 
         return TokenSchema(
             access_token=access_token,

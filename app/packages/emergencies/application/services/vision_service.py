@@ -11,8 +11,9 @@ class VisionService:
     """
     
     def __init__(self):
+        # Usamos la URL serverless específica para Workflows como indicaste
         self.client = InferenceHTTPClient(
-            api_url=settings.ROBOFLOW_API_URL,
+            api_url="https://serverless.roboflow.com",
             api_key=settings.ROBOFLOW_API_KEY
         )
         self.workspace = settings.ROBOFLOW_WORKSPACE
@@ -25,7 +26,7 @@ class VisionService:
         logger.info(f"Enviando imagen a Roboflow Workflow: {self.workflow_id}")
         
         try:
-            # Ejecutar el workflow
+            # Ejecutar el workflow tal como indica tu documentación
             result = self.client.run_workflow(
                 workspace_name=self.workspace,
                 workflow_id=self.workflow_id,
@@ -33,27 +34,29 @@ class VisionService:
                 use_cache=True
             )
             
-            # Extracción basada en el JSON real de Roboflow Workflows:
-            # Estructura: result[0]["predictions"]["image"]["predictions"][0]
+            # Verificamos si el resultado es válido
+            if not result or not isinstance(result, list):
+                logger.error(f"Respuesta inesperada de Roboflow: {result}")
+                return {"top_class": "error_ia", "confidence": 0.0}
+
+            # Según tu JSON: result[0]['predictions']['predictions']
+            data = result[0]
+            predictions = []
             
+            if "predictions" in data and isinstance(data["predictions"], dict):
+                predictions = data["predictions"].get("predictions", [])
+
             top_class = "desconocido"
             confidence = 0.0
+
+            if predictions and len(predictions) > 0:
+                # Tomamos la predicción con mayor confianza
+                best_pred = max(predictions, key=lambda x: x.get("confidence", 0))
+                top_class = best_pred.get("class", "indeterminado")
+                confidence = best_pred.get("confidence", 0.0)
             
-            if result and isinstance(result, list) and len(result) > 0:
-                wf_result = result[0]
-                # Acceder al diccionario de predicciones
-                predictions_container = wf_result.get("predictions", {})
-                
-                # Roboflow suele usar el nombre del campo de entrada ("image") como llave
-                image_preds = predictions_container.get("image", {})
-                actual_predictions = image_preds.get("predictions", [])
-                
-                if actual_predictions:
-                    # Tomamos la primera detección (la de mayor confianza usualmente)
-                    first_det = actual_predictions[0]
-                    top_class = first_det.get("class", "indeterminado")
-                    confidence = first_det.get("confidence", 0.0)
-            
+            logger.info(f"Resultado Roboflow Workflow: {top_class} ({confidence*100:.1f}%)")
+
             return {
                 "top_class": top_class,
                 "confidence": confidence,
