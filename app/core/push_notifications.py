@@ -50,6 +50,15 @@ class PushNotificationService:
                         click_action="FLUTTER_NOTIFICATION_CLICK",
                     ),
                 ),
+                webpush=messaging.WebpushConfig(
+                    notification=messaging.WebpushNotification(
+                        icon="/favicon.ico",
+                        badge="/favicon.ico",
+                    ),
+                    fcm_options=messaging.WebpushFcmOptions(
+                        link=settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else "https://smart-mechanic-frontend.vercel.app"
+                    )
+                ),
                 data=data or {},
                 token=token,
             )

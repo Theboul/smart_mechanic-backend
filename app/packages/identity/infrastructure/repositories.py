@@ -107,19 +107,12 @@ class UserRepository:
             query = query.where(Rol.nombre == role)
 
         if workshop_id:
-            # Filtro complejo: Usuarios vinculados al taller por admin, técnico o incidentes (clientes)
-            query = query.outerjoin(AdministradorTaller, Usuario.id_usuario == AdministradorTaller.id_usuario)
-            query = query.outerjoin(Tecnico, Usuario.id_usuario == Tecnico.id_usuario)
-            query = query.outerjoin(Vehiculo, Usuario.id_usuario == Vehiculo.id_usuario)
-            query = query.outerjoin(Incidente, Vehiculo.id_vehiculo == Incidente.id_vehiculo)
+            from sqlalchemy import exists
 
-            query = query.where(
-                or_(
-                    AdministradorTaller.id_taller == workshop_id,
-                    Tecnico.id_taller == workshop_id,
-                    Incidente.id_taller == workshop_id
-                )
-            )
+            is_admin = exists().where(AdministradorTaller.id_usuario == Usuario.id_usuario).where(AdministradorTaller.id_taller == workshop_id)
+            is_tecnico = exists().where(Tecnico.id_usuario == Usuario.id_usuario).where(Tecnico.id_taller == workshop_id)
+            is_cliente = exists().where(Vehiculo.id_usuario == Usuario.id_usuario).where(Incidente.id_vehiculo == Vehiculo.id_vehiculo).where(Incidente.id_taller == workshop_id)
+            query = query.where(or_(is_admin, is_tecnico, is_cliente))
 
-        result = await self.session.execute(query.distinct())
+        result = await self.session.execute(query)
         return list(result.scalars().all())
