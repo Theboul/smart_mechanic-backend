@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from app.packages.identity.infrastructure.repositories import UserRepository
 from app.packages.identity.presentation.schemas.auth_schemas import UserAdminCreate
 from app.packages.identity.domain.models import Usuario
@@ -12,7 +13,12 @@ class CreateUserAdminUseCase:
         self.user_repo = user_repo
         self.workshop_repo = workshop_repo
 
-    async def execute(self, user_in: UserAdminCreate) -> Usuario:
+    async def execute(
+        self,
+        user_in: UserAdminCreate,
+        creator_context: Optional[str] = None,
+        creator_sucursal_id: Optional[uuid.UUID] = None
+    ) -> Usuario:
         # 1. Validar correo único
         existing = await self.user_repo.get_by_email(user_in.correo)
         if existing:
@@ -35,20 +41,48 @@ class CreateUserAdminUseCase:
 
         # 4. Lógica de vinculación a taller si aplica
         if user_in.rol_nombre == "admin_taller" and user_in.id_taller:
-            admin_link = AdministradorTaller(
-                id_usuario=user.id_usuario,
-                id_taller=user_in.id_taller
-            )
-            await self.workshop_repo.link_admin(admin_link)
+            if creator_context == "owner":
+                # Si es creado por el Owner del taller, es un administrador local de sucursal
+                from app.packages.workshops.domain.models import UsuarioTaller
+                new_relation = UsuarioTaller(
+                    id_usuario=user.id_usuario,
+                    id_taller=user_in.id_taller,
+                    id_sucursal=None,
+                    rol_contexto="admin_sucursal",
+                    estado=True
+                )
+                await self.workshop_repo.link_user_taller(new_relation)
+            else:
+                # Si lo crea el SuperAdmin, es el Owner del taller
+                admin_link = AdministradorTaller(
+                    id_usuario=user.id_usuario,
+                    id_taller=user_in.id_taller
+                )
+                await self.workshop_repo.link_admin(admin_link)
             
         elif user_in.rol_nombre == "tecnico" and user_in.id_taller:
+            # Si el creador es admin de sucursal, asociar el técnico a la misma sucursal
+            id_suc = creator_sucursal_id if creator_context == "admin_sucursal" else None
             tecnico = Tecnico(
                 id_usuario=user.id_usuario,
                 id_taller=user_in.id_taller,
+                id_sucursal=id_suc,
                 nombre=user.nombre,
                 telefono=user.telefono,
                 estado=True
             )
             await self.workshop_repo.create_technician(tecnico)
+
+        elif user_in.rol_nombre == "cliente" and user_in.id_taller:
+            # Vincular al cliente creado manualmente al taller en UsuarioTaller
+            from app.packages.workshops.domain.models import UsuarioTaller
+            new_relation = UsuarioTaller(
+                id_usuario=user.id_usuario,
+                id_taller=user_in.id_taller,
+                id_sucursal=None,
+                rol_contexto="cliente",
+                estado=True
+            )
+            await self.workshop_repo.link_user_taller(new_relation)
 
         return user

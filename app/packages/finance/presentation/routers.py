@@ -2,17 +2,23 @@ from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 from typing import List, Optional
+import stripe
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
+from app.core.config import settings
 from app.packages.identity.domain.models import Usuario
 from app.packages.workshops.infrastructure.repositories import WorkshopRepository
 from app.packages.emergencies.infrastructure.repositories import IncidentRepository
 from app.packages.finance.infrastructure.repositories import FinanceRepository
 from app.packages.finance.presentation.schemas import PaymentCreate, PaymentResponse
 from app.packages.finance.application.close_incident import CloseIncidentUseCase
+from app.packages.finance.presentation.stripe_webhook import router as webhook_router
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 router = APIRouter()
+router.include_router(webhook_router)
 
 @router.post("/emergencies/{incident_id}/pay", response_model=PaymentResponse)
 async def process_payment(
@@ -40,6 +46,45 @@ async def process_payment(
         id_incidente=incident_id,
         monto_total=payment_in.monto_total
     )
+
+@router.post("/emergencies/{incident_id}/payment-intent")
+async def create_payment_intent(
+    incident_id: uuid.UUID,
+    payment_in: PaymentCreate,
+    current_user: Usuario = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generar un PaymentIntent en Stripe para el pago de la emergencia."""
+    from app.core.exceptions import NotFoundError, BadRequestError
+
+    # 1. Validar incidente y taller
+    incident_repo = IncidentRepository(db)
+    incident = await incident_repo.get_by_id(incident_id)
+    if not incident:
+        raise NotFoundError("Incidente no encontrado.")
+    
+    if not incident.id_taller:
+        raise BadRequestError("El incidente no tiene un taller asignado.")
+
+    try:
+        # Stripe espera el monto en centavos (ej: 10.00 USD -> 1000 centavos)
+        amount_cents = int(payment_in.monto_total * 100)
+        
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency="usd",
+            metadata={
+                "incident_id": str(incident_id),
+                "id_taller": str(incident.id_taller),
+                "monto_total": str(payment_in.monto_total)
+            },
+            automatic_payment_methods={
+                "enabled": True,
+            },
+        )
+        return {"clientSecret": intent.client_secret}
+    except Exception as e:
+        raise BadRequestError(f"Error al crear el PaymentIntent de Stripe: {str(e)}")
 
 @router.get("/reports", response_model=List[PaymentResponse])
 async def get_financial_reports(

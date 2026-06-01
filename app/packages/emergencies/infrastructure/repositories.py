@@ -82,12 +82,12 @@ class IncidentRepository:
         await self.session.commit()
         return incidente_target
 
-    async def get_by_workshop(self, taller_id: uuid.UUID) -> List[Incidente]:
+    async def get_by_workshop(self, taller_id: uuid.UUID, skip: Optional[int] = None, limit: Optional[int] = None) -> List[Incidente]:
         """Obtiene la lista de incidentes asignados a un taller."""
-        result = await self.session.execute(
+        stmt = (
             select(Incidente)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
@@ -96,14 +96,20 @@ class IncidentRepository:
             .where(Incidente.id_taller == taller_id)
             .order_by(Incidente.fecha_reporte.desc())
         )
+        if skip is not None:
+            stmt = stmt.offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+            
+        result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def get_all(self) -> List[Incidente]:
+    async def get_all(self, skip: Optional[int] = None, limit: Optional[int] = None) -> List[Incidente]:
         """Obtiene todos los incidentes del sistema (SuperAdmin)."""
-        result = await self.session.execute(
+        stmt = (
             select(Incidente)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
@@ -111,6 +117,12 @@ class IncidentRepository:
             )
             .order_by(Incidente.fecha_reporte.desc())
         )
+        if skip is not None:
+            stmt = stmt.offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+            
+        result = await self.session.execute(stmt)
         return result.scalars().all()
 
     async def get_active_by_user(self, user_id: uuid.UUID) -> Optional[Incidente]:
@@ -119,7 +131,7 @@ class IncidentRepository:
             select(Incidente)
             .join(Vehiculo)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
@@ -139,7 +151,7 @@ class IncidentRepository:
             select(Incidente)
             .join(Vehiculo, Incidente.id_vehiculo == Vehiculo.id_vehiculo)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),

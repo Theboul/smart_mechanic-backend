@@ -49,5 +49,20 @@ class IncidentResponse(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     evidencias: List[EvidenceResponse] = []
+    
+    # Detalle adicional del cliente y vehículo
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    vehicle_brand: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_plate: Optional[str] = None
+    vehicle_color: Optional[str] = None
+    vehicle_year: Optional[int] = None
 
     model_config = {"from_attributes": True}
+
+
+class TrackingRequest(BaseModel):
+    latitud: float = Field(..., ge=-90, le=90)
+    longitud: float = Field(..., ge=-180, le=180)
+    velocidad: Optional[float] = None

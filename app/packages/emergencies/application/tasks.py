@@ -3,6 +3,7 @@ import logging
 import asyncio
 from app.core.database import AsyncSessionLocal
 from app.packages.emergencies.infrastructure.repositories import IncidentRepository
+from app.core.celery_worker import celery_app
 from app.packages.assignment.infrastructure.repositories import AssignmentRepository
 from app.packages.emergencies.application.analyze_incident_ai import AnalyzeIncidentAIUseCase
 from app.packages.assignment.application.match_workshop import MatchWorkshopUseCase
@@ -46,9 +47,30 @@ async def run_full_incident_pipeline(incident_id: uuid.UUID):
                 logger.error(f"❌ PIPELINE: Falló en fase IA para {incident_id}")
                 return
 
-            # Notificar al cliente que el análisis de IA está listo (WebSocket + Push)
             user_id = str(incident.vehiculo.id_usuario)
             fcm_token = incident.vehiculo.propietario.fcm_token if incident.vehiculo.propietario else None
+
+            # INTERCEPTOR: Si los datos están incompletos, abortamos la asignación del taller
+            if incident.estado_incidente == "DATOS_INCOMPLETOS":
+                logger.warning(f"⚠️ PIPELINE: Datos incompletos para {incident_id}. Abortando fase de asignación de taller.")
+                
+                # A. WebSocket
+                await manager.notify_user(user_id, {
+                    "type": "SLOT_FILLING_REQUIRED",
+                    "incident_id": str(incident_id),
+                    "resumen_ia": incident.resumen_ia
+                })
+                
+                # B. Push
+                if fcm_token:
+                    logger.info(f"📲 PUSH: Enviando Solicitud de Slot Filling a token: {fcm_token[:15]}...")
+                    asyncio.create_task(push_service.send_push_notification(
+                        token=fcm_token,
+                        title="Información Necesaria",
+                        body=incident.resumen_ia or "Se requiere más información de tu emergencia.",
+                        data={"type": "SLOT_FILLING_REQUIRED", "incident_id": str(incident_id)}
+                    ))
+                return
             
             # A. WebSocket
             await manager.notify_user(user_id, {
@@ -118,3 +140,8 @@ async def run_full_incident_pipeline(incident_id: uuid.UUID):
 
     except Exception as e:
         logger.error(f"💥 PIPELINE ERROR CRITICO: {str(e)}", exc_info=True)
+
+@celery_app.task(name="app.packages.emergencies.application.tasks.run_full_incident_pipeline_task")
+def run_full_incident_pipeline_task(incident_id_str: str):
+    incident_id = uuid.UUID(incident_id_str)
+    asyncio.run(run_full_incident_pipeline(incident_id))

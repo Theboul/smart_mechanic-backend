@@ -40,14 +40,24 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     rol_obj = relationship("Rol", back_populates="usuarios", lazy="selectin")
-    vehiculos = relationship("Vehiculo", back_populates="propietario", cascade="all, delete-orphan")
+    vehiculos = relationship("Vehiculo", back_populates="propietario", cascade="all, delete-orphan", lazy="selectin")
     bitacoras = relationship("Bitacora", back_populates="usuario")
     notificaciones = relationship("Notificacion", back_populates="usuario")
+
+    # Dynamic fields for tenant and role context (not database columns)
+    id_taller = None
+    id_sucursal = None
+    rol_contexto = None
 
     @property
     def rol_nombre(self) -> str:
         """Devuelve el nombre del rol para comparaciones en la lógica de negocio."""
         return self.rol_obj.nombre if self.rol_obj else ""
+
+    @property
+    def placas(self) -> list[str]:
+        """Devuelve las patentes de los vehículos asociados."""
+        return [v.matricula for v in self.vehiculos] if self.vehiculos else []
 
 
 class Vehiculo(Base):

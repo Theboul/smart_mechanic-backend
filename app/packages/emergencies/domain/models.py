@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Text, DateTime, Numeric, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Numeric, ForeignKey, ForeignKeyConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from geoalchemy2 import Geography
@@ -15,6 +15,8 @@ class Incidente(Base):
     id_incidente = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_vehiculo = Column(UUID(as_uuid=True), ForeignKey("vehiculo.id_vehiculo"), nullable=False)
     id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
+    id_sucursal = Column(UUID(as_uuid=True), nullable=True)
+    id_usuario_cliente = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=False)
 
     # Coordenadas GPS de la emergencia — PostGIS POINT
     ubicacion_emergencia = Column(Geography('POINT', srid=4326), nullable=True)
@@ -29,15 +31,25 @@ class Incidente(Base):
     resumen_ia = Column(Text, nullable=True)
     analisis_consolidado = Column(Text, nullable=True)
 
-    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=True)
+    id_tecnico = Column(UUID(as_uuid=True), ForeignKey("tecnico.id_tecnico"), nullable=True)
 
     fecha_reporte = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     vehiculo = relationship("Vehiculo")
     taller = relationship("Taller")
-    tecnico = relationship("Tecnico", primaryjoin="Incidente.id_tecnico == Tecnico.id_usuario", foreign_keys=[id_tecnico])
+    cliente = relationship("app.packages.identity.domain.models.Usuario")
+    tecnico = relationship("Tecnico", foreign_keys=[id_tecnico])
     evidencias = relationship("EvidenciaIncidente", back_populates="incidente", cascade="all, delete-orphan")
     historial = relationship("HistorialIncidente", back_populates="incidente", cascade="all, delete-orphan")
+
+    # Restricción de integridad compuesta para asegurar que la sucursal asignada pertenece al mismo taller (tenant)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['id_sucursal', 'id_taller'],
+            ['sucursal_taller.id_sucursal', 'sucursal_taller.id_taller'],
+            name='fk_incidente_sucursal'
+        ),
+    )
 
 
 class EvidenciaIncidente(Base):
@@ -63,9 +75,21 @@ class HistorialIncidente(Base):
 
     id_historial = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_incidente = Column(UUID(as_uuid=True), ForeignKey("incidente.id_incidente"), nullable=False)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
+    id_sucursal = Column(UUID(as_uuid=True), nullable=True)
     incidente_estado_anterior = Column(String(50), nullable=True)
     incidente_estado_nuevo = Column(String(50), nullable=False)
     historial_actor = Column(String(150), nullable=True)  # Nombre o ID del actor que realizó el cambio
+    id_usuario_actor = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=True)
     fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     incidente = relationship("Incidente", back_populates="historial")
+    usuario_actor = relationship("app.packages.identity.domain.models.Usuario")
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['id_sucursal', 'id_taller'],
+            ['sucursal_taller.id_sucursal', 'sucursal_taller.id_taller'],
+            name='fk_historial_incidente_sucursal'
+        ),
+    )

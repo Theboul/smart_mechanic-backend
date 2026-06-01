@@ -25,6 +25,16 @@ class CloseIncidentUseCase:
         if incidente.id_taller != id_taller:
             raise ForbiddenError("No puedes cerrar un incidente que no te pertenece.")
 
+        # Idempotencia: Si ya está completado, retornar el pago existente
+        if incidente.estado_incidente == "COMPLETADO":
+            from sqlalchemy.future import select
+            result = await self.incident_repo.session.execute(
+                select(Pago).where(Pago.id_incidente == id_incidente)
+            )
+            existing_pago = result.scalar_one_or_none()
+            if existing_pago:
+                return existing_pago
+
         # 2. Calcular comisión (10%)
         comision = monto_total * Decimal("0.10")
         
@@ -47,11 +57,12 @@ class CloseIncidentUseCase:
             from app.packages.workshops.domain.models import Tecnico
             from sqlalchemy.future import select
             result = await self.incident_repo.session.execute(
-                select(Tecnico).where(Tecnico.id_usuario == incidente.id_tecnico)
+                select(Tecnico).where(Tecnico.id_tecnico == incidente.id_tecnico)
             )
             tecnico = result.scalar_one_or_none()
             if tecnico:
                 tecnico.estado = True
+                tecnico.estado_operativo = "DISPONIBLE"
 
         historial = HistorialIncidente(
             id_incidente=id_incidente,

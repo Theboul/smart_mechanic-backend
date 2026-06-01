@@ -91,3 +91,47 @@ class WorkshopRepository:
             select(Tecnico).where(Tecnico.id_tecnico == tecnico_id)
         )
         return result.scalars().first()
+
+    # --- Gestión de Sucursales ---
+
+    async def create_branch(self, sucursal):
+        self.session.add(sucursal)
+        await self.session.commit()
+        await self.session.refresh(sucursal)
+        return sucursal
+
+    async def get_branches_by_workshop(self, taller_id: uuid.UUID):
+        from app.packages.workshops.domain.models import SucursalTaller
+        result = await self.session.execute(
+            select(SucursalTaller).where(SucursalTaller.id_taller == taller_id)
+        )
+        return list(result.scalars().all())
+
+    async def get_branch_by_id(self, sucursal_id: uuid.UUID, taller_id: uuid.UUID):
+        from app.packages.workshops.domain.models import SucursalTaller
+        result = await self.session.execute(
+            select(SucursalTaller).where(
+                SucursalTaller.id_sucursal == sucursal_id,
+                SucursalTaller.id_taller == taller_id
+            )
+        )
+        return result.scalars().first()
+
+    async def update_branch(self, sucursal):
+        self.session.add(sucursal)
+        await self.session.commit()
+        await self.session.refresh(sucursal)
+        return sucursal
+
+    async def get_user_taller_by_user(self, user_id: uuid.UUID):
+        from app.packages.workshops.domain.models import UsuarioTaller
+        result = await self.session.execute(
+            select(UsuarioTaller).where(UsuarioTaller.id_usuario == user_id)
+        )
+        return result.scalars().first()
+
+    async def link_user_taller(self, user_taller):
+        self.session.add(user_taller)
+        await self.session.commit()
+        await self.session.refresh(user_taller)
+        return user_taller

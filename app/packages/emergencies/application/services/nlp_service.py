@@ -86,13 +86,16 @@ class NLPService:
         3. Crea un "summary" empático, profesional y muy breve (máximo 120 caracteres).
         4. Identifica la "falla" técnica y la "gravedad" (BAJA, MEDIA, ALTA).
         5. IMPORTANTE: Si la imagen muestra daños graves que Roboflow no detectó, prioriza lo que TÚ ves.
+        6. SLOT FILLING: Si no hay suficiente información en la transcripción, el audio o la imagen para identificar la falla o gravedad, establece "estado_completado" como false, y provee un "mensaje_respuesta" pidiendo al usuario los datos específicos que faltan. De lo contrario, pon "estado_completado" como true y "mensaje_respuesta" como nulo o vacío.
 
         Responde estrictamente en JSON:
         {{
           "transcription": "...",
           "summary": "...",
           "falla": "...",
-          "gravedad": "..."
+          "gravedad": "...",
+          "estado_completado": true/false,
+          "mensaje_respuesta": "..."
         }}
         """
         contents.append(prompt_text)
@@ -117,5 +120,7 @@ class NLPService:
             "transcription": "No disponible",
             "summary": "Reporte recibido. Estamos analizando tu caso.",
             "falla": "Revisión manual requerida",
-            "gravedad": "MEDIA"
+            "gravedad": "MEDIA",
+            "estado_completado": True,
+            "mensaje_respuesta": None
         }

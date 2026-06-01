@@ -23,13 +23,12 @@ class AcceptRejectIncidentUseCase:
         if incidente.id_taller != id_taller:
             raise ForbiddenError("Este incidente no está asignado a tu taller.")
 
-        # Obtener el id_usuario del técnico ya que la DB exige un ID de usuario en id_tecnico
+        # Marcar al técnico como ocupado y en camino usando el id_tecnico directo
         if self.workshop_repo:
             tecnico = await self.workshop_repo.get_technician_by_id(id_tecnico)
             if tecnico:
-                # Marcar al técnico como OCUPADO
                 tecnico.estado = False
-                id_tecnico = tecnico.id_usuario
+                tecnico.estado_operativo = "EN_CAMINO"
 
         estado_anterior = incidente.estado_incidente
         incidente.estado_incidente = "EN_CAMINO"

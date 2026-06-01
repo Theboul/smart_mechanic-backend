@@ -24,11 +24,48 @@ class UserRepository:
 
     async def get_by_email(self, email: str) -> Optional[Usuario]:
         result = await self.session.execute(select(Usuario).where(Usuario.correo == email))
-        return result.scalars().first()
+        user = result.scalars().first()
+        if user:
+            user.rol_contexto = await self._get_rol_contexto(user)
+        return user
 
     async def get_by_id(self, user_id: uuid.UUID) -> Optional[Usuario]:
         result = await self.session.execute(select(Usuario).where(Usuario.id_usuario == user_id))
-        return result.scalars().first()
+        user = result.scalars().first()
+        if user:
+            user.rol_contexto = await self._get_rol_contexto(user)
+        return user
+
+    async def _get_rol_contexto(self, user: Usuario) -> Optional[str]:
+        # Reset dynamic context fields
+        user.id_taller = None
+        user.id_sucursal = None
+
+        if user.rol_nombre not in ["admin_taller", "admin", "taller"]:
+            return None
+        
+        from app.packages.workshops.domain.models import AdministradorTaller, UsuarioTaller
+        
+        # 1. Owner
+        owner_result = await self.session.execute(
+            select(AdministradorTaller).where(AdministradorTaller.id_usuario == user.id_usuario)
+        )
+        owner_link = owner_result.scalars().first()
+        if owner_link:
+            user.id_taller = owner_link.id_taller
+            return "owner"
+            
+        # 2. Branch Admin
+        branch_result = await self.session.execute(
+            select(UsuarioTaller).where(UsuarioTaller.id_usuario == user.id_usuario)
+        )
+        branch_link = branch_result.scalars().first()
+        if branch_link:
+            user.id_taller = branch_link.id_taller
+            user.id_sucursal = branch_link.id_sucursal
+            return branch_link.rol_contexto
+            
+        return None
 
     async def create_user(self, user: Usuario) -> Usuario:
         try:
@@ -97,7 +134,7 @@ class UserRepository:
         Obtiene usuarios filtrados por rol y/o taller.
         Si hay workshop_id, filtra administradores, técnicos y clientes atendidos por dicho taller.
         """
-        from app.packages.workshops.domain.models import AdministradorTaller, Tecnico
+        from app.packages.workshops.domain.models import AdministradorTaller, UsuarioTaller, Tecnico
         from app.packages.emergencies.domain.models import Incidente
         from sqlalchemy import or_
 
@@ -110,9 +147,16 @@ class UserRepository:
             from sqlalchemy import exists
 
             is_admin = exists().where(AdministradorTaller.id_usuario == Usuario.id_usuario).where(AdministradorTaller.id_taller == workshop_id)
+            is_member = exists().where(UsuarioTaller.id_usuario == Usuario.id_usuario).where(UsuarioTaller.id_taller == workshop_id)
             is_tecnico = exists().where(Tecnico.id_usuario == Usuario.id_usuario).where(Tecnico.id_taller == workshop_id)
             is_cliente = exists().where(Vehiculo.id_usuario == Usuario.id_usuario).where(Incidente.id_vehiculo == Vehiculo.id_vehiculo).where(Incidente.id_taller == workshop_id)
-            query = query.where(or_(is_admin, is_tecnico, is_cliente))
+            query = query.where(or_(is_admin, is_member, is_tecnico, is_cliente))
 
         result = await self.session.execute(query)
-        return list(result.scalars().all())
+        users = list(result.scalars().all())
+        
+        # Cargar dinámicamente el rol de contexto para cada usuario en el listado
+        for user in users:
+            user.rol_contexto = await self._get_rol_contexto(user)
+            
+        return users

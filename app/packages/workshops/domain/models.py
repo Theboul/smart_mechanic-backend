@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Time
+from datetime import datetime
+from sqlalchemy import Column, String, Boolean, ForeignKey, Time, DateTime, ForeignKeyConstraint, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from geoalchemy2 import Geography
@@ -35,6 +36,46 @@ class Taller(Base):
     administradores = relationship("AdministradorTaller", back_populates="taller", cascade="all, delete-orphan")
     tecnicos = relationship("Tecnico", back_populates="taller")
     categorias = relationship("TallerCategoriaServicio", back_populates="taller", cascade="all, delete-orphan")
+    sucursales = relationship("SucursalTaller", back_populates="taller", cascade="all, delete-orphan")
+
+
+class SucursalTaller(Base):
+    """Sucursales físicas asociadas a un taller (SaaS Multi-Tenant)"""
+    __tablename__ = "sucursal_taller"
+
+    id_sucursal = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=False)
+    nombre = Column(String(150), nullable=False)
+    telefono = Column(String(20), nullable=True)
+    email = Column(String(150), nullable=True)
+    direccion = Column(String(255), nullable=True)
+    ubicacion = Column(Geography('POINT', srid=4326), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    taller = relationship("Taller", back_populates="sucursales")
+
+
+class UsuarioTaller(Base):
+    """Roles y contextos de usuario dentro de un Tenant / Sucursal"""
+    __tablename__ = "usuario_taller"
+
+    id_usuario_taller = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_usuario = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=False)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=False)
+    id_sucursal = Column(UUID(as_uuid=True), nullable=True)
+    rol_contexto = Column(String(50), nullable=False)
+    estado = Column(Boolean, default=True, nullable=False)
+    fecha_asignacion = Column(DateTime, default=datetime.utcnow)
+
+    # Restricción de integridad compuesta para asegurar que la sucursal pertenece al mismo taller (tenant)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['id_sucursal', 'id_taller'],
+            ['sucursal_taller.id_sucursal', 'sucursal_taller.id_taller'],
+            name='fk_usuario_taller_sucursal'
+        ),
+    )
 
 
 class TallerCategoriaServicio(Base):
@@ -68,12 +109,22 @@ class Tecnico(Base):
     id_tecnico = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_usuario = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=False)
     id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=False)
+    id_sucursal = Column(UUID(as_uuid=True), nullable=True)
     nombre = Column(String(150), nullable=False)
     telefono = Column(String(20), nullable=True)
     estado = Column(Boolean, default=True, nullable=False)
+    estado_operativo = Column(String(50), default="DISPONIBLE", nullable=False)
 
     taller = relationship("Taller", back_populates="tecnicos")
     disponibilidades = relationship("DisponibilidadTecnico", back_populates="tecnico", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['id_sucursal', 'id_taller'],
+            ['sucursal_taller.id_sucursal', 'sucursal_taller.id_taller'],
+            name='fk_tecnico_sucursal'
+        ),
+    )
 
 
 class DisponibilidadTecnico(Base):
@@ -88,6 +139,29 @@ class DisponibilidadTecnico(Base):
     disponibilidad = Column(Boolean, default=True, nullable=False)
 
     tecnico = relationship("Tecnico", back_populates="disponibilidades")
+
+
+class TrackingTecnico(Base):
+    """Registro geográfico temporal del técnico durante el traslado (GPS Stream)"""
+    __tablename__ = "tracking_tecnico"
+
+    id_tracking = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_asignacion = Column(UUID(as_uuid=True), ForeignKey("asignacion_incidente.id_asignacion"), nullable=False)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=False)
+    id_sucursal = Column(UUID(as_uuid=True), nullable=True)
+    latitud = Column(Numeric(10, 7), nullable=False)
+    longitud = Column(Numeric(10, 7), nullable=False)
+    velocidad = Column(Numeric(6, 2), nullable=True)
+    estado_tracking = Column(String(50), nullable=True)
+    fecha_registro = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['id_sucursal', 'id_taller'],
+            ['sucursal_taller.id_sucursal', 'sucursal_taller.id_taller'],
+            name='fk_tracking_sucursal'
+        ),
+    )
 
 
 # Constantes de Categorías

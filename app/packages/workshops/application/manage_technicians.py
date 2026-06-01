@@ -28,13 +28,20 @@ class ManageTechniciansUseCase:
         if not rol_tecnico:
              raise NotFoundError("El rol 'tecnico' no existe en el sistema.")
 
+        import secrets
+        import string
+
+        # Generar contraseña temporal aleatoria de 8 caracteres
+        alphabet = string.ascii_letters + string.digits
+        temp_pass = ''.join(secrets.choice(alphabet) for _ in range(8))
+
         new_user = Usuario(
             id_usuario=uuid.uuid4(),
             id_rol=rol_tecnico.id_rol,
             nombre=tecnico_in.nombre,
             correo=tecnico_in.correo,
             telefono=tecnico_in.telefono,
-            contrasena=get_password_hash("Mecanico123!"), # Password temporal
+            contrasena=get_password_hash(temp_pass), # Password temporal aleatoria
             estado=True
         )
         created_user = await self.user_repo.create_user(new_user)
@@ -48,7 +55,10 @@ class ManageTechniciansUseCase:
             telefono=tecnico_in.telefono,
             estado=True
         )
-        return await self.workshop_repo.create_technician(new_tecnico)
+        saved_tecnico = await self.workshop_repo.create_technician(new_tecnico)
+        # Adjuntar para que Pydantic lo serialice en el response
+        saved_tecnico.temp_password = temp_pass
+        return saved_tecnico
 
     async def list_technicians(self, admin_user: Usuario) -> list[Tecnico]:
         taller = await self.workshop_repo.get_by_admin(admin_user.id_usuario)

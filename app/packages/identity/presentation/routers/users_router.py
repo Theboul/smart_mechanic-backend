@@ -34,25 +34,37 @@ async def create_user_admin(
     """
     (Admin) Crear un nuevo usuario manualmente.
     - SuperAdmin: Puede crear cualquier rol en cualquier taller.
-    - AdminTaller: Solo puede crear Técnicos para SU taller.
+    - Owner (admin_taller en contexto owner): Puede crear admin_taller, tecnico y cliente.
+    - AdminTaller (admin_taller en contexto admin_sucursal): Solo puede crear tecnico y cliente.
     """
     if current_user.rol_nombre not in [ROL_SUPERADMIN, ROL_ADMIN_TALLER]:
         raise ForbiddenError("No tienes permisos para crear usuarios.")
 
-    # Restricción Multi-tenant para Admin de Taller
+    # Restricciones Multi-tenant para Admin de Taller / Owner
     if current_user.rol_nombre == ROL_ADMIN_TALLER:
-        if user_in.rol_nombre != "tecnico":
-            raise ForbiddenError("Como Administrador de Taller, solo puedes crear técnicos.")
+        if current_user.rol_contexto == "owner":
+            # Owner puede crear admin_taller, tecnico, cliente
+            if user_in.rol_nombre not in ["admin_taller", "tecnico", "cliente"]:
+                raise ForbiddenError("Como Owner, solo puedes crear administradores de taller, técnicos y clientes.")
+        elif current_user.rol_contexto == "admin_sucursal":
+            # Admin de Sucursal solo puede crear tecnico y cliente
+            if user_in.rol_nombre not in ["tecnico", "cliente"]:
+                raise ForbiddenError("Como Administrador de Sucursal, solo puedes crear técnicos y clientes.")
+        else:
+            raise ForbiddenError("No tienes permisos contextuales en este taller.")
         
-        taller = await workshop_repo.get_by_admin(current_user.id_usuario)
-        if not taller:
-            raise ForbiddenError("No tienes un taller vinculado.")
+        if not current_user.id_taller:
+            raise ForbiddenError("No estás asociado a ningún taller activo.")
         
-        # Forzar que el técnico sea de su taller
-        user_in.id_taller = taller.id_taller
+        # Forzar que el taller sea el del creador
+        user_in.id_taller = current_user.id_taller
 
     use_case = CreateUserAdminUseCase(user_repo, workshop_repo)
-    return await use_case.execute(user_in)
+    return await use_case.execute(
+        user_in,
+        creator_context=current_user.rol_contexto,
+        creator_sucursal_id=current_user.id_sucursal
+    )
 
 @users_router.get("", response_model=List[UserResponse])
 async def list_users(

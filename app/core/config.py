@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     # Firebase Cloud Messaging
     FIREBASE_SERVICE_ACCOUNT_PATH: str = ""
     
+    # Google Maps API Key para el backend
+    GOOGLE_MAPS_BACKEND_KEY: str = ""
+    
+    # Redis URL para Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Stripe Keys
+    STRIPE_SECRET_KEY: str = "sk_test_placeholder"
+    STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder"
+    
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     

@@ -18,6 +18,7 @@ async def test_close_incident_success():
     mock_incident = MagicMock(spec=Incidente)
     mock_incident.id_taller = id_taller
     mock_incident.estado_incidente = "EN_PROGRESO"
+    mock_incident.id_tecnico = None
     mock_incident.historial = []
     
     mock_incident_repo.get_by_id = AsyncMock(return_value=mock_incident)
@@ -33,7 +34,7 @@ async def test_close_incident_success():
     assert result.monto == monto_total
     assert result.monto_comision == Decimal("100.00") # 10% de 1000
     assert result.estado_pago == "PAGADO"
-    assert mock_incident.estado_incidente == "FINALIZADO"
+    assert mock_incident.estado_incidente == "COMPLETADO"
     assert len(mock_incident.historial) == 1
     assert mock_incident.historial[0].historial_actor == "SISTEMA_FINANCIERO"
     

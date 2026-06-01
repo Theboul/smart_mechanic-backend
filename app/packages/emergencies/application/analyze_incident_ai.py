@@ -23,6 +23,8 @@ class AnalyzeIncidentAIUseCase:
         incidente = await self.repo.get_by_id(id_incidente)
         if not incidente:
             return None
+            
+        estado_original = incidente.estado_incidente
         
         # IDEMPOTENCIA: No re-analizar si ya está en proceso, analizado o asignado.
         if incidente.estado_incidente in ["ANALIZANDO", "ANALIZADO", "ASIGNADO", "TALLER_ASIGNADO", "FINALIZADO"]:
@@ -73,27 +75,40 @@ class AnalyzeIncidentAIUseCase:
             last_audio.transcripcion = nlp_results.get("transcription")
         
         # 3. Consolidar resultados
-        # Generamos el resumen inteligente final usando el texto de Gemini
-        resumen_ia = nlp_results.get('summary', 'Estamos analizando tu caso. Un taller se pondrá en contacto pronto.')
+        estado_completado = nlp_results.get("estado_completado", True)
         
-        # Guardamos el análisis detallado (falla + gravedad)
-        falla = nlp_results.get('falla', 'Desconocida')
-        gravedad = nlp_results.get('gravedad', 'Media')
-        incidente.analisis_consolidado = f"Falla: {falla} | Gravedad: {gravedad}"
-        
-        # 4. Actualizar incidente
-        incidente.resumen_ia = resumen_ia
-        incidente.estado_incidente = "ANALIZADO"
-        
-        # Guardar historial
-        historial = HistorialIncidente(
-            id_incidente=id_incidente,
-            incidente_estado_anterior="PENDIENTE",
-            incidente_estado_nuevo="ANALIZADO",
-            historial_actor="AI_BOT",
-            fecha=None # El modelo puede tener default
-        )
-        incidente.historial.append(historial)
+        if not estado_completado:
+            # Slot Filling: El análisis no está completado porque falta información
+            mensaje = nlp_results.get("mensaje_respuesta", "Información incompleta. Se requieren más detalles de la falla.")
+            incidente.resumen_ia = mensaje
+            incidente.analisis_consolidado = "Estado: Slot Filling en curso. Datos incompletos."
+            incidente.estado_incidente = "DATOS_INCOMPLETOS"
+            
+            historial = HistorialIncidente(
+                id_incidente=id_incidente,
+                incidente_estado_anterior=estado_original,
+                incidente_estado_nuevo="DATOS_INCOMPLETOS",
+                historial_actor="AI_BOT",
+                fecha=None
+            )
+            incidente.historial.append(historial)
+        else:
+            # Generamos el resumen inteligente final usando el texto de Gemini
+            resumen_ia = nlp_results.get('summary', 'Estamos analizando tu caso. Un taller se pondrá en contacto pronto.')
+            falla = nlp_results.get('falla', 'Desconocida')
+            gravedad = nlp_results.get('gravedad', 'Media')
+            incidente.analisis_consolidado = f"Falla: {falla} | Gravedad: {gravedad}"
+            incidente.resumen_ia = resumen_ia
+            incidente.estado_incidente = "ANALIZADO"
+            
+            historial = HistorialIncidente(
+                id_incidente=id_incidente,
+                incidente_estado_anterior=estado_original,
+                incidente_estado_nuevo="ANALIZADO",
+                historial_actor="AI_BOT",
+                fecha=None
+            )
+            incidente.historial.append(historial)
         
         await self.repo.session.commit()
         await self.repo.session.refresh(incidente)
