@@ -1,5 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, cast
+from geoalchemy2 import Geography
+from geoalchemy2.elements import WKBElement, WKTElement
 from geoalchemy2.functions import ST_Distance, ST_DWithin
 from typing import List, Tuple
 import uuid
@@ -10,6 +12,20 @@ from app.packages.workshops.domain.models import Taller, SucursalTaller, CATEGOR
 class AssignmentRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    def _to_geography_expression(self, point):
+        if isinstance(point, str):
+            return func.ST_GeogFromText(point)
+
+        if isinstance(point, WKBElement):
+            srid = point.srid if getattr(point, "srid", None) not in (None, -1) else 4326
+            return cast(func.ST_GeomFromWKB(bytes(point.data), srid), Geography)
+
+        if isinstance(point, WKTElement):
+            srid = point.srid if getattr(point, "srid", None) not in (None, -1) else 4326
+            return cast(func.ST_GeomFromText(point.data, srid), Geography)
+
+        return cast(point, Geography)
 
     async def get_nearby_workshops(
         self, 
@@ -28,9 +44,10 @@ class AssignmentRepository:
         
         # Distancia en metros para ST_DWithin
         radius_meters = radius_km * 1000
+        point_geography = self._to_geography_expression(point)
         
         from sqlalchemy.orm import joinedload
-        from app.packages.workshops.domain.models import SucursalTaller, Taller, AdministradorTaller
+        from app.packages.workshops.domain.models import SucursalTaller, Taller, AdministradorTaller, TallerCategoriaServicio, CategoriaServicio
         
         # 1. Logear advertencias sobre sucursales activas sin ubicación configurada
         try:
@@ -55,7 +72,7 @@ class AssignmentRepository:
         # 2. Búsqueda de sucursales cercanas con ubicacion válida
         query = select(
             SucursalTaller, 
-            ST_Distance(SucursalTaller.ubicacion, point).label("distance")
+            ST_Distance(SucursalTaller.ubicacion, point_geography).label("distance")
         ).join(
             Taller, SucursalTaller.id_taller == Taller.id_taller
         ).options(
@@ -65,9 +82,20 @@ class AssignmentRepository:
                 SucursalTaller.is_active == True,
                 Taller.is_active == True,
                 SucursalTaller.ubicacion.is_not(None),
-                ST_DWithin(SucursalTaller.ubicacion, point, radius_meters)
+                ST_DWithin(SucursalTaller.ubicacion, point_geography, radius_meters)
             )
         )
+
+        if required_specialty:
+            query = query.join(
+                TallerCategoriaServicio,
+                TallerCategoriaServicio.id_taller == Taller.id_taller
+            ).join(
+                CategoriaServicio,
+                CategoriaServicio.id_categoria == TallerCategoriaServicio.id_categoria
+            ).where(
+                func.lower(CategoriaServicio.nombre) == required_specialty.strip().lower()
+            )
         
         if exclude_ids:
             query = query.where(SucursalTaller.id_taller.notin_(exclude_ids))

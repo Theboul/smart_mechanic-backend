@@ -59,6 +59,8 @@ class IncidentResponse(BaseModel):
     telefono: Optional[str]
     estado_incidente: str
     prioridad_incidente: str
+    origen: Optional[str] = None
+    id_cotizacion_origen: Optional[uuid.UUID] = None
     transcripcion_audio: Optional[str]
     resumen_ia: Optional[str]
     analisis_consolidado: Optional[str]
@@ -107,4 +109,3 @@ class TechnicianVerificationRequest(BaseModel):
 
 class ManualOverrideRequest(BaseModel):
     motivo: str = Field(..., min_length=5, description="Motivo obligatorio de la verificación manual")
-

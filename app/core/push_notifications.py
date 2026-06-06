@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 import logging
 import os
+from pathlib import Path
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,15 @@ class PushNotificationService:
                 logger.warning("FIREBASE_SERVICE_ACCOUNT_PATH no está configurado.")
                 return
 
-            if not os.path.exists(cert_path):
-                logger.error(f"El archivo de credenciales de Firebase no existe en: {cert_path}")
+            cert_file = Path(cert_path)
+            if not cert_file.is_absolute():
+                cert_file = Path(__file__).resolve().parents[2] / cert_file
+
+            if not cert_file.exists():
+                logger.error(f"El archivo de credenciales de Firebase no existe en: {cert_file}")
                 return
 
-            cred = credentials.Certificate(cert_path)
+            cred = credentials.Certificate(str(cert_file))
             firebase_admin.initialize_app(cred)
             cls._initialized = True
             logger.info("Firebase Admin SDK inicializado correctamente.")

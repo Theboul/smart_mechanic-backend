@@ -8,6 +8,10 @@ from datetime import datetime
 
 from app.core.database import Base
 
+# Importar modelos relacionados para que SQLAlchemy resuelva las relaciones por nombre
+import app.packages.finance.domain.models  # noqa: F401
+import app.packages.assignment.domain.models  # noqa: F401
+
 
 class Incidente(Base):
     """Ticket de emergencia reportado por un cliente en campo."""
@@ -26,6 +30,8 @@ class Incidente(Base):
     descripcion = Column(Text, nullable=True)
     estado_incidente = Column(String(50), default="PENDIENTE", nullable=False)
     prioridad_incidente = Column(String(20), default="MEDIA", nullable=False)
+    origen = Column(String(50), nullable=True)
+    id_cotizacion_origen = Column(UUID(as_uuid=True), ForeignKey("cotizacion.id_cotizacion"), nullable=True)
 
     # Campos enriquecidos por la IA (Fase de procesamiento inteligente)
     transcripcion_audio = Column(Text, nullable=True)

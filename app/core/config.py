@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "API Taller Backend"
@@ -48,7 +51,12 @@ class Settings(BaseSettings):
     MATCH_RADIUS_KM: float = 15.0
     
     # Pydantic Configuration para leer el .env
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_ROOT / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 # Instancia global de las configuraciones para importar en todo el proyecto
 settings = Settings()

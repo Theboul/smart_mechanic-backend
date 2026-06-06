@@ -30,6 +30,8 @@ import app.packages.assignment.domain.models         # AsignacionIncidente
 import app.packages.finance.domain.models            # Pago
 # Scheduling
 import app.packages.scheduling.domain.models         # Cita
+# Quotations
+import app.packages.quotations.domain.models         # SolicitudCotizacion, Cotizacion
 
 target_metadata = Base.metadata
 
