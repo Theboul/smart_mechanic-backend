@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Integer
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime
 
 from app.core.database import Base
@@ -40,14 +40,24 @@ class Usuario(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     rol_obj = relationship("Rol", back_populates="usuarios", lazy="selectin")
-    vehiculos = relationship("Vehiculo", back_populates="propietario", cascade="all, delete-orphan")
-    bitacoras = relationship("Bitacora", back_populates="usuario")
+    vehiculos = relationship("Vehiculo", back_populates="propietario", cascade="all, delete-orphan", lazy="selectin")
+    bitacoras = relationship("Bitacora", back_populates="usuario", foreign_keys="[Bitacora.id_usuario_actor]")
     notificaciones = relationship("Notificacion", back_populates="usuario")
+
+    # Dynamic fields for tenant and role context (not database columns)
+    id_taller = None
+    id_sucursal = None
+    rol_contexto = None
 
     @property
     def rol_nombre(self) -> str:
         """Devuelve el nombre del rol para comparaciones en la lógica de negocio."""
         return self.rol_obj.nombre if self.rol_obj else ""
+
+    @property
+    def placas(self) -> list[str]:
+        """Devuelve las patentes de los vehículos asociados."""
+        return [v.matricula for v in self.vehiculos] if self.vehiculos else []
 
 
 class Vehiculo(Base):
@@ -71,13 +81,21 @@ class Bitacora(Base):
     __tablename__ = "bitacora"
 
     id_bitacora = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    id_usuario = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=False)
+    id_usuario_actor = Column(UUID(as_uuid=True), ForeignKey("usuarios.id_usuario"), nullable=False)
+    rol_usuario = Column(String(50), nullable=True)
+    id_taller = Column(UUID(as_uuid=True), ForeignKey("taller.id_taller"), nullable=True)
+    id_sucursal_contexto = Column(UUID(as_uuid=True), nullable=True)
+    id_sucursal_afectada = Column(UUID(as_uuid=True), nullable=True)
+    tipo_entidad = Column(String(100), nullable=True)
+    id_entidad = Column(UUID(as_uuid=True), nullable=True)
     ip = Column(String(45), nullable=False)
     accion = Column(String(255), nullable=False)
     descripcion = Column(Text, nullable=True)
+    datos_antes = Column(JSONB, nullable=True)
+    datos_despues = Column(JSONB, nullable=True)
     fecha_hora = Column(DateTime, default=datetime.utcnow)
 
-    usuario = relationship("Usuario", back_populates="bitacoras")
+    usuario = relationship("Usuario", back_populates="bitacoras", foreign_keys=[id_usuario_actor])
 
 
 class Notificacion(Base):

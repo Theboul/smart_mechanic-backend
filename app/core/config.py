@@ -1,5 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "API Taller Backend"
@@ -32,11 +35,28 @@ class Settings(BaseSettings):
     # Firebase Cloud Messaging
     FIREBASE_SERVICE_ACCOUNT_PATH: str = ""
     
+    # Google Maps API Key para el backend
+    GOOGLE_MAPS_BACKEND_KEY: str = ""
+    
+    # Redis URL para Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Stripe Keys
+    STRIPE_SECRET_KEY: str = "sk_test_placeholder"
+    STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder"
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     
+    # Asignacion de taller
+    MATCH_RADIUS_KM: float = 15.0
+    
     # Pydantic Configuration para leer el .env
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_ROOT / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 # Instancia global de las configuraciones para importar en todo el proyecto
 settings = Settings()

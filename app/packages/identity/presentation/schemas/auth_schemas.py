@@ -31,6 +31,10 @@ class UserResponse(BaseModel):
     correo: EmailStr
     rol_nombre: str
     estado: bool
+    rol_contexto: Optional[str] = None
+    id_taller: Optional[uuid.UUID] = None
+    id_sucursal: Optional[uuid.UUID] = None
+    placas: Optional[list[str]] = []
 
     model_config = {"from_attributes": True}
 

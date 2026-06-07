@@ -22,6 +22,9 @@ async def test_login_success():
     mock_user.rol_nombre = "cliente"
     mock_user.nombre = "Juan Perez"
     mock_user.telefono = "12345678"
+    mock_user.rol_contexto = None
+    mock_user.id_taller = None
+    mock_user.id_sucursal = None
     
     mock_repo.get_by_email = AsyncMock(return_value=mock_user)
     

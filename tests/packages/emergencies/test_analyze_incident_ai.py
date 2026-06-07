@@ -13,6 +13,7 @@ async def test_analyze_incident_ai_success():
     incident_id = uuid.uuid4()
     mock_incident = MagicMock(spec=Incidente)
     mock_incident.id_incidente = incident_id
+    mock_incident.estado_incidente = "PENDIENTE"
     mock_incident.evidencias = [
         EvidenciaIncidente(id_evidencia=uuid.uuid4(), evidencia_tipo="foto", archivo_url="http://test.com/img.jpg")
     ]
@@ -32,8 +33,9 @@ async def test_analyze_incident_ai_success():
             "confidence": 0.95
         })
         MockNLP.return_value.process_report = AsyncMock(return_value={
-            "summary": "Problema en los frenos detectado",
-            "entities": {"falla": "pastillas gastadas"}
+            "summary": "DIAGNÓSTICO IA: Problema en los frenos detectado",
+            "entities": {"falla": "pastillas gastadas"},
+            "estado_completado": True
         })
 
         # 2. Execute
@@ -47,4 +49,4 @@ async def test_analyze_incident_ai_success():
         assert len(result.historial) == 1
         assert result.historial[0].incidente_estado_nuevo == "ANALIZADO"
         mock_repo.get_by_id.assert_called_once_with(incident_id)
-        mock_repo.session.commit.assert_called_once()
+        assert mock_repo.session.commit.call_count == 2

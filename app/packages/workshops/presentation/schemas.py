@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uuid
+from datetime import datetime
 
 
 # --- Requests ---
@@ -53,9 +54,38 @@ class TecnicoResponse(BaseModel):
     nombre: str
     telefono: Optional[str]
     estado: bool
+    temp_password: Optional[str] = None
+    id_sucursal: Optional[uuid.UUID] = None
+    branch_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
 class TecnicoUpdate(BaseModel):
     nombre: Optional[str] = Field(None, max_length=150)
     telefono: Optional[str] = Field(None, max_length=20)
+
+# --- Sucursales ---
+
+class SucursalCreate(BaseModel):
+    nombre: str = Field(..., max_length=150)
+    telefono: Optional[str] = Field(None, max_length=20)
+    direccion: str = Field(..., max_length=255)
+    latitud: float = Field(..., ge=-90, le=90)
+    longitud: float = Field(..., ge=-180, le=180)
+
+class SucursalResponse(BaseModel):
+    id_sucursal: uuid.UUID
+    id_taller: uuid.UUID
+    nombre: str
+    telefono: Optional[str]
+    direccion: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    estado: bool
+    fecha_creacion: datetime
+
+    model_config = {"from_attributes": True}
+
+class AsignarAdminSucursal(BaseModel):
+    id_usuario: uuid.UUID
+    id_sucursal: uuid.UUID

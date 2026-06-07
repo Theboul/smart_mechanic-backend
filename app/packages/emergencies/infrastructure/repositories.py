@@ -30,7 +30,9 @@ class IncidentRepository:
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
-                selectinload(Incidente.historial)
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
             )
             .where(Incidente.id_incidente == incident_id)
         )
@@ -62,7 +64,10 @@ class IncidentRepository:
             .where(Vehiculo.id_usuario == user_id)
             .where(Incidente.estado_incidente.notin_(["FINALIZADO", "CANCELADO", "COMPLETADO"]))
         )
-        activos = result.scalars().all()
+        activos = list(result.scalars().all())
+        
+        if incidente_target not in activos and incidente_target.estado_incidente not in ("CANCELADO", "COMPLETADO"):
+            activos.append(incidente_target)
         
         for inc in activos:
             estado_anterior = inc.estado_incidente
@@ -82,35 +87,61 @@ class IncidentRepository:
         await self.session.commit()
         return incidente_target
 
-    async def get_by_workshop(self, taller_id: uuid.UUID) -> List[Incidente]:
-        """Obtiene la lista de incidentes asignados a un taller."""
-        result = await self.session.execute(
+    async def get_by_workshop(
+        self,
+        taller_id: uuid.UUID,
+        id_sucursal: Optional[uuid.UUID] = None,
+        skip: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Incidente]:
+        """Obtiene la lista de incidentes asignados a un taller, con filtro opcional de sucursal."""
+        stmt = (
             select(Incidente)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
-                selectinload(Incidente.historial)
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
             )
             .where(Incidente.id_taller == taller_id)
-            .order_by(Incidente.fecha_reporte.desc())
         )
+        if id_sucursal is not None:
+            stmt = stmt.where(Incidente.id_sucursal == id_sucursal)
+            
+        stmt = stmt.order_by(Incidente.fecha_reporte.desc())
+        
+        if skip is not None:
+            stmt = stmt.offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+            
+        result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def get_all(self) -> List[Incidente]:
+    async def get_all(self, skip: Optional[int] = None, limit: Optional[int] = None) -> List[Incidente]:
         """Obtiene todos los incidentes del sistema (SuperAdmin)."""
-        result = await self.session.execute(
+        stmt = (
             select(Incidente)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
-                selectinload(Incidente.historial)
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
             )
             .order_by(Incidente.fecha_reporte.desc())
         )
+        if skip is not None:
+            stmt = stmt.offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+            
+        result = await self.session.execute(stmt)
         return result.scalars().all()
 
     async def get_active_by_user(self, user_id: uuid.UUID) -> Optional[Incidente]:
@@ -119,13 +150,44 @@ class IncidentRepository:
             select(Incidente)
             .join(Vehiculo)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
-                selectinload(Incidente.historial)
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
             )
             .where(Vehiculo.id_usuario == user_id)
+            .where(Incidente.estado_incidente.notin_(["CANCELADO", "COMPLETADO"]))
+            .order_by(Incidente.fecha_reporte.desc())
+        )
+        return result.scalars().first()
+
+    async def get_active_by_technician(self, technician_user_id: uuid.UUID) -> Optional[Incidente]:
+        """Obtiene el incidente activo asignado a un técnico por su id_usuario de la tabla usuarios."""
+        from app.packages.workshops.domain.models import Tecnico
+        # 1. Obtener el técnico a partir del id_usuario
+        tecnico_res = await self.session.execute(
+            select(Tecnico).where(Tecnico.id_usuario == technician_user_id)
+        )
+        tecnico = tecnico_res.scalars().first()
+        if not tecnico:
+            return None
+            
+        # 2. Buscar incidente activo asignado a este técnico
+        result = await self.session.execute(
+            select(Incidente)
+            .options(
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
+                joinedload(Incidente.taller),
+                joinedload(Incidente.tecnico),
+                selectinload(Incidente.evidencias),
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
+            )
+            .where(Incidente.id_tecnico == tecnico.id_tecnico)
             .where(Incidente.estado_incidente.notin_(["FINALIZADO", "CANCELADO", "COMPLETADO"]))
             .order_by(Incidente.fecha_reporte.desc())
         )
@@ -139,11 +201,13 @@ class IncidentRepository:
             select(Incidente)
             .join(Vehiculo, Incidente.id_vehiculo == Vehiculo.id_vehiculo)
             .options(
-                joinedload(Incidente.vehiculo),
+                joinedload(Incidente.vehiculo).joinedload(Vehiculo.propietario),
                 joinedload(Incidente.taller),
                 joinedload(Incidente.tecnico),
                 selectinload(Incidente.evidencias),
-                selectinload(Incidente.historial)
+                selectinload(Incidente.historial),
+                selectinload(Incidente.verificaciones),
+                selectinload(Incidente.pago)
             )
             .where(Vehiculo.id_usuario == user_id)
             .order_by(Incidente.fecha_reporte.desc())

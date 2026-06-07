@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 import logging
 import os
+from pathlib import Path
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,15 @@ class PushNotificationService:
                 logger.warning("FIREBASE_SERVICE_ACCOUNT_PATH no está configurado.")
                 return
 
-            if not os.path.exists(cert_path):
-                logger.error(f"El archivo de credenciales de Firebase no existe en: {cert_path}")
+            cert_file = Path(cert_path)
+            if not cert_file.is_absolute():
+                cert_file = Path(__file__).resolve().parents[2] / cert_file
+
+            if not cert_file.exists():
+                logger.error(f"El archivo de credenciales de Firebase no existe en: {cert_file}")
                 return
 
-            cred = credentials.Certificate(cert_path)
+            cred = credentials.Certificate(str(cert_file))
             firebase_admin.initialize_app(cred)
             cls._initialized = True
             logger.info("Firebase Admin SDK inicializado correctamente.")
@@ -38,6 +43,13 @@ class PushNotificationService:
             PushNotificationService.initialize()
 
         try:
+            # Configurar Webpush de forma segura para evitar errores en versiones viejas del SDK
+            webpush_options = None
+            if hasattr(messaging, 'WebpushFcmOptions'):
+                webpush_options = messaging.WebpushFcmOptions(
+                    link=settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else "https://smart-mechanic-frontend.vercel.app"
+                )
+
             message = messaging.Message(
                 notification=messaging.Notification(
                     title=title,
@@ -55,9 +67,7 @@ class PushNotificationService:
                         icon="/favicon.ico",
                         badge="/favicon.ico",
                     ),
-                    fcm_options=messaging.WebpushFcmOptions(
-                        link=settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else "https://smart-mechanic-frontend.vercel.app"
-                    )
+                    fcm_options=webpush_options
                 ),
                 data=data or {},
                 token=token,

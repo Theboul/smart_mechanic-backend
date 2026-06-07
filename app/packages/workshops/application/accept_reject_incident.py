@@ -3,7 +3,7 @@ import logging
 from app.packages.emergencies.infrastructure.repositories import IncidentRepository
 from app.packages.assignment.application.match_workshop import MatchWorkshopUseCase
 from app.packages.assignment.infrastructure.repositories import AssignmentRepository
-from app.packages.emergencies.domain.models import HistorialIncidente
+from app.packages.emergencies.domain.models import HistorialIncidente, VerificacionTecnico
 from app.core.exceptions import ForbiddenError, NotFoundError
 
 logger = logging.getLogger(__name__)
@@ -23,13 +23,37 @@ class AcceptRejectIncidentUseCase:
         if incidente.id_taller != id_taller:
             raise ForbiddenError("Este incidente no está asignado a tu taller.")
 
-        # Obtener el id_usuario del técnico ya que la DB exige un ID de usuario en id_tecnico
+        # Marcar al técnico como ocupado y en camino usando el id_tecnico directo
         if self.workshop_repo:
             tecnico = await self.workshop_repo.get_technician_by_id(id_tecnico)
             if tecnico:
-                # Marcar al técnico como OCUPADO
                 tecnico.estado = False
-                id_tecnico = tecnico.id_usuario
+                tecnico.estado_operativo = "EN_CAMINO"
+
+        # Actualizar el estado de la asignación a ACEPTADO
+        id_asignacion = None
+        if self.assignment_repo:
+            assignment = await self.assignment_repo.get_by_incident(id_incidente)
+            if assignment:
+                assignment.estado_asignacion = "ACEPTADO"
+                assignment.id_tecnico = id_tecnico
+                id_asignacion = assignment.id_asignacion
+
+        # Generar código de verificación segura del técnico (PIN de 6 dígitos)
+        import secrets
+        verification_code = "".join(secrets.choice("0123456789") for _ in range(6))
+
+        verificacion = VerificacionTecnico(
+            id_incidente=id_incidente,
+            id_asignacion=id_asignacion,
+            id_tecnico=id_tecnico,
+            metodo_verificacion="PIN",
+            codigo_verificacion=verification_code,
+            estado_verificacion="PENDIENTE",
+            resultado="PENDIENTE",
+            intentos=0
+        )
+        self.incident_repo.session.add(verificacion)
 
         estado_anterior = incidente.estado_incidente
         incidente.estado_incidente = "EN_CAMINO"
