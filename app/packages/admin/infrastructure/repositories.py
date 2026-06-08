@@ -34,10 +34,14 @@ class TenantRepository:
             raise ConflictError("El NIT ya está registrado por otro taller.")
 
     async def update_workshop(self, taller: Taller) -> Taller:
-        self.session.add(taller)
-        await self.session.commit()
-        await self.session.refresh(taller)
-        return taller
+        try:
+            self.session.add(taller)
+            await self.session.commit()
+            await self.session.refresh(taller)
+            return taller
+        except IntegrityError:
+            await self.session.rollback()
+            raise ConflictError("El NIT ya está registrado por otro taller.")
 
     async def get_user(self, user_id: uuid.UUID) -> Optional[Usuario]:
         result = await self.session.execute(select(Usuario).where(Usuario.id_usuario == user_id))
@@ -111,7 +115,10 @@ class TenantRepository:
             )
         )
         total_technicians = await self.session.scalar(
-            select(func.count(Tecnico.id_tecnico)).where(Tecnico.id_taller == taller_id)
+            select(func.count(Tecnico.id_tecnico)).where(
+                Tecnico.id_taller == taller_id,
+                Tecnico.estado == True
+            )
         )
         active_branches = await self.session.scalar(
             select(func.count(SucursalTaller.id_sucursal)).where(

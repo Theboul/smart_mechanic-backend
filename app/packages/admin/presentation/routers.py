@@ -16,6 +16,7 @@ from app.packages.admin.presentation.schemas import (
     MetricasResponse,
     BitacoraResponse,
     IsolationResponse,
+    ActionResultResponse,
 )
 from app.core.exceptions import NotFoundError, ConflictError, ForbiddenError, BadRequestError
 
@@ -32,6 +33,27 @@ def _handle_service_errors(exc: Exception):
     if isinstance(exc, BadRequestError):
         raise exc
     raise exc
+
+
+def _serialize_taller(taller):
+    if not taller:
+        return None
+    return {
+        "id_taller": str(taller.id_taller),
+        "nombre": taller.nombre,
+        "nit": taller.nit,
+        "telefono": taller.telefono,
+        "email": taller.email,
+        "direccion": taller.direccion,
+        "is_active": taller.is_active,
+    }
+
+
+async def _register_audit_safely(service: TenantManagementService, *args, **kwargs) -> None:
+    try:
+        await service.registrar_accion_bitacora(*args, **kwargs)
+    except Exception:
+        return
 
 
 @router.get("/talleres", response_model=List[TallerResponse])
@@ -53,15 +75,17 @@ async def create_workshop(
     service: TenantManagementService = Depends(get_admin_service)
 ):
     try:
-        taller = await service.registrar_actualizar_taller(current_user, payload.dict())
-        await service.registrar_accion_bitacora(
+        payload_data = payload.model_dump()
+        taller = await service.registrar_actualizar_taller(current_user, payload_data)
+        await _register_audit_safely(
+            service,
             current_user,
             accion="CREAR_TALLER",
             descripcion=f"Creó taller {taller.nombre}",
             taller_id=taller.id_taller,
             tipo_entidad="taller",
             id_entidad=taller.id_taller,
-            datos_despues=payload.dict()
+            datos_despues=payload_data
         )
         return taller
     except Exception as exc:
@@ -76,15 +100,20 @@ async def update_workshop(
     service: TenantManagementService = Depends(get_admin_service)
 ):
     try:
-        taller = await service.registrar_actualizar_taller(current_user, payload.dict(exclude_none=True), id_taller=id_taller)
-        await service.registrar_accion_bitacora(
+        existing_taller = await service.repo.get_workshop(id_taller)
+        snapshot_before = _serialize_taller(existing_taller)
+        payload_data = payload.model_dump(exclude_none=True)
+        taller = await service.registrar_actualizar_taller(current_user, payload_data, id_taller=id_taller)
+        await _register_audit_safely(
+            service,
             current_user,
             accion="ACTUALIZAR_TALLER",
             descripcion=f"Actualizó taller {taller.nombre}",
             taller_id=taller.id_taller,
             tipo_entidad="taller",
             id_entidad=taller.id_taller,
-            datos_despues=payload.dict(exclude_none=True)
+            datos_antes=snapshot_before,
+            datos_despues=payload_data
         )
         return taller
     except Exception as exc:
@@ -99,14 +128,18 @@ async def change_workshop_state(
     service: TenantManagementService = Depends(get_admin_service)
 ):
     try:
+        existing_taller = await service.repo.get_workshop(id_taller)
+        snapshot_before = _serialize_taller(existing_taller)
         taller = await service.activar_desactivar_taller(current_user, id_taller, activo)
-        await service.registrar_accion_bitacora(
+        await _register_audit_safely(
+            service,
             current_user,
             accion="CAMBIAR_ESTADO_TALLER",
             descripcion=f"{'Activó' if activo else 'Desactivó'} taller {taller.nombre}",
             taller_id=taller.id_taller,
             tipo_entidad="taller",
             id_entidad=taller.id_taller,
+            datos_antes={"is_active": snapshot_before["is_active"]} if snapshot_before else None,
             datos_despues={"is_active": activo}
         )
         return taller
@@ -114,7 +147,7 @@ async def change_workshop_state(
         _handle_service_errors(exc)
 
 
-@router.post("/talleres/{id_taller}/usuarios/{id_usuario}", response_model=dict)
+@router.post("/talleres/{id_taller}/usuarios/{id_usuario}", response_model=ActionResultResponse)
 async def assign_user_to_workshop(
     id_taller: uuid.UUID,
     id_usuario: uuid.UUID,
@@ -123,14 +156,15 @@ async def assign_user_to_workshop(
     service: TenantManagementService = Depends(get_admin_service)
 ):
     try:
-        link = await service.asignar_usuario_a_taller(
+        await service.asignar_usuario_a_taller(
             current_user,
             id_taller,
             id_usuario,
             rol_contexto=payload.rol_contexto,
             id_sucursal=payload.id_sucursal
         )
-        await service.registrar_accion_bitacora(
+        await _register_audit_safely(
+            service,
             current_user,
             accion="ASIGNAR_USUARIO_TALLER",
             descripcion=f"Asoció usuario {id_usuario} al taller {id_taller}",
@@ -139,12 +173,12 @@ async def assign_user_to_workshop(
             id_entidad=id_usuario,
             datos_despues={"rol_contexto": payload.rol_contexto, "id_sucursal": str(payload.id_sucursal) if payload.id_sucursal else None}
         )
-        return {"success": True, "message": "Usuario asignado al taller correctamente."}
+        return ActionResultResponse(message="Usuario asignado al taller correctamente.")
     except Exception as exc:
         _handle_service_errors(exc)
 
 
-@router.post("/talleres/{id_taller}/tecnicos/{id_tecnico}", response_model=dict)
+@router.post("/talleres/{id_taller}/tecnicos/{id_tecnico}", response_model=ActionResultResponse)
 async def assign_technician_to_workshop(
     id_taller: uuid.UUID,
     id_tecnico: uuid.UUID,
@@ -159,7 +193,8 @@ async def assign_technician_to_workshop(
             id_tecnico,
             id_sucursal=payload.id_sucursal
         )
-        await service.registrar_accion_bitacora(
+        await _register_audit_safely(
+            service,
             current_user,
             accion="ASIGNAR_TECNICO_TALLER",
             descripcion=f"Asoció técnico {tecnico.id_tecnico} al taller {id_taller}",
@@ -168,7 +203,7 @@ async def assign_technician_to_workshop(
             id_entidad=tecnico.id_tecnico,
             datos_despues={"id_sucursal": str(payload.id_sucursal) if payload.id_sucursal else None}
         )
-        return {"success": True, "message": "Técnico asignado al taller correctamente."}
+        return ActionResultResponse(message="Técnico asignado al taller correctamente.")
     except Exception as exc:
         _handle_service_errors(exc)
 

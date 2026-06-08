@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class TallerCreate(BaseModel):
@@ -30,8 +30,7 @@ class TallerResponse(BaseModel):
     direccion: Optional[str]
     is_active: bool
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserAssignmentRequest(BaseModel):
@@ -54,8 +53,7 @@ class IncidentResponse(BaseModel):
     fecha_reporte: Optional[str]
     descripcion: Optional[str]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MetricasResponse(BaseModel):
@@ -75,8 +73,7 @@ class BitacoraResponse(BaseModel):
     descripcion: Optional[str]
     fecha_hora: Optional[str]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class IsolationResponse(BaseModel):
@@ -85,3 +82,8 @@ class IsolationResponse(BaseModel):
     id_sucursal: Optional[uuid.UUID]
     puede_acceder: bool
     mensaje: str
+
+
+class ActionResultResponse(BaseModel):
+    success: bool = True
+    message: str
